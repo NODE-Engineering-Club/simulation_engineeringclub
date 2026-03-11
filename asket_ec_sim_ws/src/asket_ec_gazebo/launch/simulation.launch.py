@@ -14,7 +14,7 @@ Sans launch file, tu devrais ouvrir 4 terminaux séparés pour :
 4. Terminal 4 : démarrer le bridge ROS2-Gazebo
 
 Le launch file automatise tout ça en une seule commande :
-  ros2 launch beatnaut_gazebo simulation.launch.py
+  ros2 launch asket_ec_gazebo simulation.launch.py
 
 =========================================================
 STRUCTURE D'UN LAUNCH FILE ROS2
@@ -50,33 +50,33 @@ def generate_launch_description():
     # ÉTAPE 1 : Trouver les chemins vers les packages
     # =========================================================
     # get_package_share_directory() cherche le package dans
-    # beatnaut_sim_ws/install/<package_name>/share/<package_name>/
+    # asket_ec_sim_ws/install/<package_name>/share/<package_name>/
     # (l'endroit où `colcon build` copie les fichiers)
 
-    # Chemin vers le package beatnaut_gazebo (ce package)
-    pkg_beatnaut_gazebo = get_package_share_directory('beatnaut_gazebo')
+    # Chemin vers le package asket_ec_gazebo (ce package)
+    pkg_asket_ec_gazebo = get_package_share_directory('asket_ec_gazebo')
 
-    # Chemin vers le package beatnaut_description (modèle du bateau)
-    pkg_beatnaut_description = get_package_share_directory('beatnaut_description')
+    # Chemin vers le package asket_ec_description (modèle du bateau)
+    pkg_asket_ec_description = get_package_share_directory('asket_ec_description')
 
     # =========================================================
     # ÉTAPE 2 : Construire les chemins vers les fichiers
     # =========================================================
 
     # Fichier SDF du monde Gazebo
-    world_file = os.path.join(pkg_beatnaut_gazebo, 'worlds', 'beatnaut_world.sdf')
+    world_file = os.path.join(pkg_asket_ec_gazebo, 'worlds', 'asket_ec_world.sdf')
 
     # Fichier SDF du modèle du bateau
-    robot_sdf_file = os.path.join(pkg_beatnaut_description, 'urdf', 'beatnaut.sdf')
+    robot_sdf_file = os.path.join(pkg_asket_ec_description, 'urdf', 'asket_ec.sdf')
 
     # Fichier de configuration du bridge
-    bridge_config_file = os.path.join(pkg_beatnaut_gazebo, 'config', 'ros_gz_bridge.yaml')
+    bridge_config_file = os.path.join(pkg_asket_ec_gazebo, 'config', 'ros_gz_bridge.yaml')
 
     # =========================================================
     # ÉTAPE 3 : Déclarer les arguments du launch
     # =========================================================
     # Les arguments permettent de personnaliser le lancement depuis la CLI.
-    # Exemple : ros2 launch beatnaut_gazebo simulation.launch.py headless:=true
+    # Exemple : ros2 launch asket_ec_gazebo simulation.launch.py headless:=true
 
     # Argument : mode headless (sans interface graphique, utile pour les serveurs)
     headless_arg = DeclareLaunchArgument(
@@ -115,12 +115,12 @@ def generate_launch_description():
         cmd=[
             'gz', 'sim',
             '-r',               # Démarrer la simulation immédiatement
-            world_file,         # Charger notre monde beatnaut_world.sdf
+            world_file,         # Charger notre monde asket_ec_world.sdf
         ],
         output='screen',        # Afficher les logs Gazebo dans le terminal
         additional_env={
             # GZ_SIM_RESOURCE_PATH : dit à Gazebo où chercher les modèles
-            # On ajoute le dossier d'installation ROS2 pour trouver beatnaut.sdf
+            # On ajoute le dossier d'installation ROS2 pour trouver asket_ec.sdf
             'GZ_SIM_RESOURCE_PATH': os.path.join(
                 os.environ.get('AMENT_PREFIX_PATH', '').split(':')[0],
                 '..', 'share'

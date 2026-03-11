@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <!--
-  package.xml — Manifeste du package beatnaut_control
+  package.xml — Manifeste du package asket_ec_control
 
   Ce package contient le code Python qui contrôle le bateau.
   C'est un package ROS2 "ament_python" (code Python pur, pas de C++).
@@ -25,16 +25,16 @@
              C'est ce qu'on envoie aux propulseurs (vitesse angulaire hélice).
 -->
 <package format="3">
-  <name>beatnaut_control</name>
+  <name>asket_ec_control</name>
   <version>0.1.0</version>
   <description>
-    Package de contrôle du bateau Beatnaut.
+    Package de contrôle du bateau Asket EC.
     Implémente un contrôleur différentiel qui convertit des commandes
     de vitesse (geometry_msgs/Twist) en commandes individuelles pour
-    chaque propulseur du Beatnaut.
+    chaque propulseur du Asket EC.
   </description>
 
-  <maintainer email="beatnaut@engineering.club">Beatnaut Engineering Club</maintainer>
+  <maintainer email="asket_ec@engineering.club">Asket EC Engineering Club</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_python</buildtool_depend>

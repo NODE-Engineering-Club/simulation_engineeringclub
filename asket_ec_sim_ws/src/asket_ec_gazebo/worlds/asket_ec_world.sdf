@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  beatnaut_world.sdf — Monde de simulation Gazebo Harmonic
+  asket_ec_world.sdf — Monde de simulation Gazebo Harmonic
 
   =========================================================
   QU'EST-CE QU'UN "MONDE" GAZEBO ?
@@ -22,7 +22,7 @@
   </world>
 -->
 <sdf version="1.9">
-  <world name="beatnaut_world">
+  <world name="asket_ec_world">
 
     <!--
       =====================================================
@@ -173,7 +173,7 @@
       MODÈLE DU BATEAU — INCLUDE
       =====================================================
       Au lieu de copier tout le SDF du bateau ici, on l'inclut depuis
-      beatnaut_description. C'est plus propre et maintenable.
+      asket_ec_description. C'est plus propre et maintenable.
 
       uri : chemin vers le fichier SDF du bateau
             "package://" est une convention ROS2 pour pointer vers
@@ -184,8 +184,8 @@
              0.05 m de hauteur = légèrement au-dessus de l'eau au départ
     -->
     <include>
-      <uri>package://beatnaut_description/urdf/beatnaut.sdf</uri>
-      <name>beatnaut</name>
+      <uri>package://asket_ec_description/urdf/asket_ec.sdf</uri>
+      <name>asket_ec</name>
       <pose>0 0 0.05 0 0 0</pose>
     </include>
 

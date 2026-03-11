@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  beatnaut.sdf — Modèle SDF (Simulation Description Format) du bateau Beatnaut
+  asket_ec.sdf — Modèle SDF (Simulation Description Format) du bateau Asket EC
 
   =========================================================
   QU'EST-CE QUE LE FORMAT SDF ?
@@ -42,7 +42,7 @@
   (Ixx ajusté à 0.367 pour tenir compte de la distribution réelle de masse)
 -->
 <sdf version="1.9">
-  <model name="beatnaut">
+  <model name="asket_ec">
 
     <!--
       =========================================================
@@ -195,7 +195,7 @@
                 name="gz::sim::systems::Imu">
         </plugin>
         <!-- Topic Gazebo où les données IMU seront publiées -->
-        <topic>/beatnaut/imu</topic>
+        <topic>/asket_ec/imu</topic>
       </sensor>
 
       <!--
@@ -240,7 +240,7 @@
                 name="gz::sim::systems::NavSat">
         </plugin>
         <!-- Topic Gazebo où les données GPS seront publiées -->
-        <topic>/beatnaut/navsat</topic>
+        <topic>/asket_ec/navsat</topic>
       </sensor>
 
     </link>
@@ -463,7 +463,7 @@
          Plus n est grand → plus la force de poussée est grande.
          Si n est négatif → poussée en arrière (marche arrière).
 
-         TOPIC : /beatnaut/thruster/port/cmd
+         TOPIC : /asket_ec/thruster/port/cmd
          Type  : gz.msgs.Double (un simple nombre flottant)
          Valeur: vitesse angulaire de l'hélice en rad/s
                  300 rad/s ≈ 2865 RPM (vitesse max approximative)
@@ -471,14 +471,14 @@
     <plugin
       filename="gz-sim-thruster-system"
       name="gz::sim::systems::Thruster">
-      <namespace>beatnaut</namespace>
+      <namespace>asket_ec</namespace>
       <joint_name>thruster_port_joint</joint_name>
       <thrust_coefficient>0.004</thrust_coefficient>  <!-- Kt -->
       <fluid_density>1000</fluid_density>             <!-- ρ eau douce -->
       <propeller_diameter>0.08</propeller_diameter>   <!-- D = 8 cm -->
       <velocity_control>true</velocity_control>
       <!-- Le topic sur lequel écouter les commandes -->
-      <topic>/beatnaut/thruster/port/cmd</topic>
+      <topic>/asket_ec/thruster/port/cmd</topic>
     </plugin>
 
     <!-- =====================================================
@@ -490,13 +490,13 @@
     <plugin
       filename="gz-sim-thruster-system"
       name="gz::sim::systems::Thruster">
-      <namespace>beatnaut</namespace>
+      <namespace>asket_ec</namespace>
       <joint_name>thruster_starboard_joint</joint_name>
       <thrust_coefficient>0.004</thrust_coefficient>
       <fluid_density>1000</fluid_density>
       <propeller_diameter>0.08</propeller_diameter>
       <velocity_control>true</velocity_control>
-      <topic>/beatnaut/thruster/starboard/cmd</topic>
+      <topic>/asket_ec/thruster/starboard/cmd</topic>
     </plugin>
 
   </model>

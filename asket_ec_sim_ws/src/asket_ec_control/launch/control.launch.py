@@ -7,8 +7,8 @@ Ce launch file est utile pour :
 - Débogage du comportement du contrôleur
 
 Usage :
-  ros2 launch beatnaut_control control.launch.py
-  ros2 launch beatnaut_control control.launch.py max_thrust_rpm:=200.0
+  ros2 launch asket_ec_control control.launch.py
+  ros2 launch asket_ec_control control.launch.py max_thrust_rpm:=200.0
 """
 
 from launch import LaunchDescription
@@ -41,7 +41,7 @@ def generate_launch_description():
 
     # Nœud de contrôle différentiel
     control_node = Node(
-        package='beatnaut_control',
+        package='asket_ec_control',
         executable='differential_drive_node',
         name='differential_drive_controller',
         output='screen',

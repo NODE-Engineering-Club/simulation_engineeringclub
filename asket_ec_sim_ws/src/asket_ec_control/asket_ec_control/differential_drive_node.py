@@ -1,5 +1,5 @@
 """
-differential_drive_node.py — Contrôleur différentiel pour le Beatnaut
+differential_drive_node.py — Contrôleur différentiel pour le Asket EC
 
 =========================================================
 QU'EST-CE QUE LA PROPULSION DIFFÉRENTIELLE ?
@@ -55,7 +55,7 @@ from std_msgs.msg import Float64
 
 class DifferentialDriveNode(Node):
     """
-    Nœud ROS2 de contrôle différentiel pour le Beatnaut.
+    Nœud ROS2 de contrôle différentiel pour le Asket EC.
 
     Ce nœud écoute les commandes de vitesse sur /cmd_vel et publie
     les vitesses d'hélice appropriées sur les topics des propulseurs.
@@ -66,10 +66,10 @@ class DifferentialDriveNode(Node):
     │  (clavier, joy) │   geometry_msgs/Twist   │     (ce nœud)           │
     └─────────────────┘                         └────────┬────────────────┘
                                                          │
-                            /beatnaut/thruster/port/cmd  │
+                            /asket_ec/thruster/port/cmd  │
                             ─────────────────────────────┤
                                                          │  std_msgs/Float64
-                            /beatnaut/thruster/stbd/cmd  │
+                            /asket_ec/thruster/stbd/cmd  │
                             ─────────────────────────────┘
                                                          │
                                                     Gazebo
@@ -88,7 +88,7 @@ class DifferentialDriveNode(Node):
         # =========================================================
         # Les paramètres ROS2 permettent de configurer un nœud sans
         # modifier le code. On peut les changer au lancement :
-        # ros2 run beatnaut_control differential_drive_node --ros-args -p wheel_separation:=0.6
+        # ros2 run asket_ec_control differential_drive_node --ros-args -p wheel_separation:=0.6
 
         self.declare_parameter('wheel_separation', 0.50)
         # Écartement entre les deux propulseurs (m)
@@ -122,14 +122,14 @@ class DifferentialDriveNode(Node):
         # Commande pour le propulseur gauche (port)
         self.pub_port = self.create_publisher(
             Float64,
-            '/beatnaut/thruster/port/cmd',
+            '/asket_ec/thruster/port/cmd',
             10
         )
 
         # Commande pour le propulseur droit (starboard)
         self.pub_starboard = self.create_publisher(
             Float64,
-            '/beatnaut/thruster/starboard/cmd',
+            '/asket_ec/thruster/starboard/cmd',
             10
         )
 
@@ -159,7 +159,7 @@ class DifferentialDriveNode(Node):
         self.safety_timer = self.create_timer(0.1, self.safety_check_callback)
 
         self.get_logger().info(
-            f'Contrôleur différentiel Beatnaut démarré !\n'
+            f'Contrôleur différentiel Asket EC démarré !\n'
             f'  Écartement moteurs : {self.L} m\n'
             f'  Poussée max        : {self.max_thrust} rad/s\n'
             f'  En attente de commandes sur /cmd_vel...'
@@ -268,7 +268,7 @@ def main(args=None):
     Point d'entrée du nœud ROS2.
 
     Cette fonction est appelée quand on lance :
-      ros2 run beatnaut_control differential_drive_node
+      ros2 run asket_ec_control differential_drive_node
 
     rclpy.init()     : initialise la communication ROS2
     rclpy.spin()     : démarre la boucle d'événements (écoute les topics)

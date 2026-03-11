@@ -15,7 +15,7 @@ import os
 from glob import glob
 from setuptools import find_packages, setup
 
-package_name = 'beatnaut_control'
+package_name = 'asket_ec_control'
 
 setup(
     name=package_name,
@@ -35,19 +35,19 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='Beatnaut Engineering Club',
-    maintainer_email='beatnaut@engineering.club',
-    description='Contrôleur différentiel pour le bateau Beatnaut',
+    maintainer='Asket EC Engineering Club',
+    maintainer_email='asket_ec@engineering.club',
+    description='Contrôleur différentiel pour le bateau Asket EC',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         # console_scripts : liste des exécutables ROS2 créés par ce package
-        # Chaque ligne crée une commande : ros2 run beatnaut_control <nom>
+        # Chaque ligne crée une commande : ros2 run asket_ec_control <nom>
         'console_scripts': [
             # 'differential_drive_node' = nom de la commande ros2 run
-            # 'beatnaut_control.differential_drive_node' = module Python
+            # 'asket_ec_control.differential_drive_node' = module Python
             # ':main' = fonction à appeler dans ce module
-            'differential_drive_node = beatnaut_control.differential_drive_node:main',
+            'differential_drive_node = asket_ec_control.differential_drive_node:main',
         ],
     },
 )

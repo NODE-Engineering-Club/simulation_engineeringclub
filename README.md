@@ -1,6 +1,6 @@
-# Beatnaut Simulation — ROS2/Gazebo Harmonic
+# Asket EC Simulation — ROS2/Gazebo Harmonic
 
-Simulation complète du bateau autonome **Beatnaut** avec ROS2 Jazzy et Gazebo Harmonic.
+Simulation complète du bateau autonome **Asket EC** avec ROS2 Jazzy et Gazebo Harmonic.
 
 ```
     ╔══════════════════════════════════════╗
@@ -15,10 +15,10 @@ Simulation complète du bateau autonome **Beatnaut** avec ROS2 Jazzy et Gazebo H
 
 ## Qu'est-ce que ce projet ?
 
-Ce repository contient un **workspace ROS2 complet** pour simuler le Beatnaut,
+Ce repository contient un **workspace ROS2 complet** pour simuler le Asket EC,
 un catamaran télécommandé/autonome construit par un club d'ingénierie étudiant.
 
-**Le Beatnaut physique :**
+**Le Asket EC physique :**
 - Catamaran de 1.50m × 0.60m, masse 10 kg
 - 2 propulseurs BLDC (contrôle différentiel, comme un tank)
 - GPS + IMU pour la navigation
@@ -72,32 +72,32 @@ rosdep update
 ## Structure du projet
 
 ```
-beatnaut_sim_ws/
+asket_ec_sim_ws/
 ├── src/
 │   │
-│   ├── beatnaut_description/        # Package : MODÈLE du bateau
+│   ├── asket_ec_description/        # Package : MODÈLE du bateau
 │   │   ├── package.xml              # Dépendances ROS2 du package
 │   │   ├── CMakeLists.txt           # Instructions de build
 │   │   └── urdf/
-│   │       └── beatnaut.sdf         # ← FICHIER PRINCIPAL : modèle 3D + physique
+│   │       └── asket_ec.sdf         # ← FICHIER PRINCIPAL : modèle 3D + physique
 │   │                                #   Définit géométrie, masse, inertie,
 │   │                                #   capteurs (IMU/GPS), plugins physique
 │   │
-│   ├── beatnaut_gazebo/             # Package : SIMULATION Gazebo
+│   ├── asket_ec_gazebo/             # Package : SIMULATION Gazebo
 │   │   ├── package.xml
 │   │   ├── CMakeLists.txt
 │   │   ├── worlds/
-│   │   │   └── beatnaut_world.sdf   # Monde Gazebo : eau, soleil, bateau inclus
+│   │   │   └── asket_ec_world.sdf   # Monde Gazebo : eau, soleil, bateau inclus
 │   │   ├── config/
 │   │   │   └── ros_gz_bridge.yaml   # Topics bridgés entre Gazebo et ROS2
 │   │   └── launch/
 │   │       ├── simulation.launch.py # Lance Gazebo + bridge
-│   │       └── beatnaut_full.launch.py  # ← POINT D'ENTRÉE PRINCIPAL
+│   │       └── asket_ec_full.launch.py  # ← POINT D'ENTRÉE PRINCIPAL
 │   │
-│   └── beatnaut_control/            # Package : CONTRÔLE des moteurs
+│   └── asket_ec_control/            # Package : CONTRÔLE des moteurs
 │       ├── package.xml
 │       ├── setup.py
-│       ├── beatnaut_control/
+│       ├── asket_ec_control/
 │       │   └── differential_drive_node.py  # Nœud : /cmd_vel → propulseurs
 │       └── launch/
 │           └── control.launch.py    # Lance uniquement le contrôleur
@@ -121,11 +121,11 @@ cd simulation_engineeringclub
 
 ```bash
 # Méthode rapide (script automatique)
-bash beatnaut_sim_ws/build.sh
+bash asket_ec_sim_ws/build.sh
 
 # OU méthode manuelle
 source /opt/ros/jazzy/setup.bash
-cd beatnaut_sim_ws
+cd asket_ec_sim_ws
 colcon build --symlink-install
 ```
 
@@ -135,12 +135,12 @@ colcon build --symlink-install
 > qui veut utiliser ce workspace.
 
 ```bash
-source beatnaut_sim_ws/install/setup.bash
+source asket_ec_sim_ws/install/setup.bash
 ```
 
 **Astuce** : Ajoute cette ligne à ton `~/.bashrc` pour ne pas avoir à la retaper :
 ```bash
-echo "source ~/simulation_engineeringclub/beatnaut_sim_ws/install/setup.bash" >> ~/.bashrc
+echo "source ~/simulation_engineeringclub/asket_ec_sim_ws/install/setup.bash" >> ~/.bashrc
 ```
 
 ---
@@ -150,11 +150,11 @@ echo "source ~/simulation_engineeringclub/beatnaut_sim_ws/install/setup.bash" >>
 ### Simulation complète (Gazebo + contrôleur)
 
 ```bash
-ros2 launch beatnaut_gazebo beatnaut_full.launch.py
+ros2 launch asket_ec_gazebo asket_ec_full.launch.py
 ```
 
 Cela démarre :
-1. **Gazebo Harmonic** avec le monde beatnaut_world.sdf
+1. **Gazebo Harmonic** avec le monde asket_ec_world.sdf
 2. **robot_state_publisher** (transformations TF2)
 3. **ros_gz_bridge** (bridge ROS2 <-> Gazebo)
 4. **differential_drive_controller** (après 3s de délai)
@@ -162,19 +162,19 @@ Cela démarre :
 ### Simulation Gazebo seulement (sans contrôleur)
 
 ```bash
-ros2 launch beatnaut_gazebo simulation.launch.py
+ros2 launch asket_ec_gazebo simulation.launch.py
 ```
 
 ### Contrôleur seulement (si Gazebo tourne déjà)
 
 ```bash
-ros2 launch beatnaut_control control.launch.py
+ros2 launch asket_ec_control control.launch.py
 ```
 
 ### Mode headless (sans interface graphique, pour serveurs)
 
 ```bash
-ros2 launch beatnaut_gazebo beatnaut_full.launch.py headless:=true
+ros2 launch asket_ec_gazebo asket_ec_full.launch.py headless:=true
 ```
 
 ---
@@ -212,10 +212,10 @@ ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{}" --once
 
 ```bash
 # Propulseur gauche (port) à 150 rad/s
-ros2 topic pub /beatnaut/thruster/port/cmd std_msgs/msg/Float64 "{data: 150.0}" --once
+ros2 topic pub /asket_ec/thruster/port/cmd std_msgs/msg/Float64 "{data: 150.0}" --once
 
 # Propulseur droit (starboard) à 150 rad/s
-ros2 topic pub /beatnaut/thruster/starboard/cmd std_msgs/msg/Float64 "{data: 150.0}" --once
+ros2 topic pub /asket_ec/thruster/starboard/cmd std_msgs/msg/Float64 "{data: 150.0}" --once
 ```
 
 ---
@@ -224,23 +224,23 @@ ros2 topic pub /beatnaut/thruster/starboard/cmd std_msgs/msg/Float64 "{data: 150
 
 ```bash
 # Données GPS en temps réel (position lat/lon/alt)
-ros2 topic echo /beatnaut/navsat
+ros2 topic echo /asket_ec/navsat
 
 # Données IMU (orientation + accélération)
-ros2 topic echo /beatnaut/imu
+ros2 topic echo /asket_ec/imu
 
 # Position et orientation du bateau dans le monde
-ros2 topic echo /beatnaut/pose
+ros2 topic echo /asket_ec/pose
 
 # Odométrie estimée
-ros2 topic echo /beatnaut/odometry
+ros2 topic echo /asket_ec/odometry
 
 # Voir tous les topics actifs
 ros2 topic list
 
 # Voir la fréquence d'un topic
-ros2 topic hz /beatnaut/imu
-ros2 topic hz /beatnaut/navsat
+ros2 topic hz /asket_ec/imu
+ros2 topic hz /asket_ec/navsat
 ```
 
 ---
@@ -255,7 +255,7 @@ ros2 topic hz /beatnaut/navsat
 |  |  Teleop         |         |    Gazebo Harmonic           |     |
 |  |  (clavier/joy)  |         |                             |     |
 |  +--------+--------+         |  +---------------------+   |     |
-|           |  /cmd_vel        |  |  Modele Beatnaut     |   |     |
+|           |  /cmd_vel        |  |  Modele Asket EC     |   |     |
 |           v                  |  |  - BuoyancyPlugin   |   |     |
 |  +-----------------+         |  |  - HydroPlugin      |   |     |
 |  |  Differential   |         |  |  - ThrusterPlugin   |   |     |
@@ -265,9 +265,9 @@ ros2 topic hz /beatnaut/navsat
 |     | port/cmd | stbd/cmd    +-------------+---------------+     |
 |     v          v                           |                     |
 |  +----------------------+  <--------------+                     |
-|  |   ros_gz_bridge      |  /beatnaut/imu                        |
-|  |  (ROS2 <-> Gazebo)   |  /beatnaut/navsat                     |
-|  +----------------------+  /beatnaut/thruster/*/cmd             |
+|  |   ros_gz_bridge      |  /asket_ec/imu                        |
+|  |  (ROS2 <-> Gazebo)   |  /asket_ec/navsat                     |
+|  +----------------------+  /asket_ec/thruster/*/cmd             |
 |           |                                                      |
 |           v                                                      |
 |  +----------------------+                                       |
@@ -283,12 +283,12 @@ ros2 topic hz /beatnaut/navsat
 | Topic | Type | Direction | Description |
 |-------|------|-----------|-------------|
 | `/cmd_vel` | `geometry_msgs/Twist` | Entree | Commande de vitesse du bateau |
-| `/beatnaut/thruster/port/cmd` | `std_msgs/Float64` | Sortie -> Gazebo | Commande propulseur gauche (rad/s) |
-| `/beatnaut/thruster/starboard/cmd` | `std_msgs/Float64` | Sortie -> Gazebo | Commande propulseur droit (rad/s) |
-| `/beatnaut/imu` | `sensor_msgs/Imu` | Gazebo -> ROS2 | Donnees IMU (orientation + accel.) |
-| `/beatnaut/navsat` | `sensor_msgs/NavSatFix` | Gazebo -> ROS2 | Position GPS (lat/lon/alt) |
-| `/beatnaut/pose` | `geometry_msgs/PoseStamped` | Gazebo -> ROS2 | Position precise dans le monde |
-| `/beatnaut/odometry` | `nav_msgs/Odometry` | Gazebo -> ROS2 | Odometrie estimee |
+| `/asket_ec/thruster/port/cmd` | `std_msgs/Float64` | Sortie -> Gazebo | Commande propulseur gauche (rad/s) |
+| `/asket_ec/thruster/starboard/cmd` | `std_msgs/Float64` | Sortie -> Gazebo | Commande propulseur droit (rad/s) |
+| `/asket_ec/imu` | `sensor_msgs/Imu` | Gazebo -> ROS2 | Donnees IMU (orientation + accel.) |
+| `/asket_ec/navsat` | `sensor_msgs/NavSatFix` | Gazebo -> ROS2 | Position GPS (lat/lon/alt) |
+| `/asket_ec/pose` | `geometry_msgs/PoseStamped` | Gazebo -> ROS2 | Position precise dans le monde |
+| `/asket_ec/odometry` | `nav_msgs/Odometry` | Gazebo -> ROS2 | Odometrie estimee |
 | `/clock` | `rosgraph_msgs/Clock` | Gazebo -> ROS2 | Horloge de simulation |
 | `/tf` | `tf2_msgs/TFMessage` | robot_state_pub | Transformations entre les liens |
 
@@ -334,10 +334,10 @@ which gz
 # Si absent : sudo apt install gz-harmonic
 ```
 
-### "Package 'beatnaut_gazebo' not found"
+### "Package 'asket_ec_gazebo' not found"
 ```bash
 # Tu as oublie de sourcer l'installation
-source beatnaut_sim_ws/install/setup.bash
+source asket_ec_sim_ws/install/setup.bash
 ```
 
 ### Le bridge ne demarre pas
@@ -350,7 +350,7 @@ ros2 pkg list | grep ros_gz_bridge
 ### La simulation est tres lente (< 0.5x real time)
 - Reduire la resolution graphique dans Gazebo
 - Utiliser le mode headless : `headless:=true`
-- Augmenter `max_step_size` dans `beatnaut_world.sdf` (reduit la precision)
+- Augmenter `max_step_size` dans `asket_ec_world.sdf` (reduit la precision)
 
 ---
 

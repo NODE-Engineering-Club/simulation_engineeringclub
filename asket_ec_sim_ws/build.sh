@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# build.sh — Script de compilation du workspace ROS2 Beatnaut
+# build.sh — Script de compilation du workspace ROS2 Asket EC
 #
 # CE SCRIPT FAIT QUOI ?
 # Ce script automatise toute la procédure de compilation du workspace ROS2.
@@ -13,11 +13,11 @@
 # Ce script fait tout ça en une seule commande.
 #
 # UTILISATION :
-#   cd beatnaut_sim_ws
+#   cd asket_ec_sim_ws
 #   bash build.sh
 #
 # OU depuis la racine du repo :
-#   bash beatnaut_sim_ws/build.sh
+#   bash asket_ec_sim_ws/build.sh
 #
 # PRÉREQUIS :
 #   - ROS2 Jazzy installé dans /opt/ros/jazzy/
@@ -35,7 +35,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color (réinitialise la couleur)
 
 echo -e "${BLUE}=======================================${NC}"
-echo -e "${BLUE}  Build du workspace Beatnaut Sim     ${NC}"
+echo -e "${BLUE}  Build du workspace Asket EC Sim     ${NC}"
 echo -e "${BLUE}=======================================${NC}"
 
 # =============================================================================
@@ -109,8 +109,8 @@ echo -e "${GREEN}=======================================${NC}"
 echo -e "\n${YELLOW}Pour utiliser le workspace, exécute DANS TON TERMINAL :${NC}"
 echo -e "  ${BLUE}source install/setup.bash${NC}"
 echo -e "\n${YELLOW}Puis lance la simulation :${NC}"
-echo -e "  ${BLUE}ros2 launch beatnaut_gazebo beatnaut_full.launch.py${NC}"
+echo -e "  ${BLUE}ros2 launch asket_ec_gazebo asket_ec_full.launch.py${NC}"
 echo -e "\n${YELLOW}Ou juste la simulation Gazebo :${NC}"
-echo -e "  ${BLUE}ros2 launch beatnaut_gazebo simulation.launch.py${NC}"
+echo -e "  ${BLUE}ros2 launch asket_ec_gazebo simulation.launch.py${NC}"
 echo -e "\n${YELLOW}Dans un autre terminal (après avoir sourcé) :${NC}"
 echo -e "  ${BLUE}ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.5}}\" --once${NC}"

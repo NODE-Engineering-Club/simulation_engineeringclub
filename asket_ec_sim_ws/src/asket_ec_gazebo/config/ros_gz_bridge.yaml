@@ -31,8 +31,8 @@
 # ---------------------------------------------------------
 # Le capteur IMU de Gazebo publie orientation + accélération.
 # On convertit gz.msgs.IMU → sensor_msgs/msg/Imu (format ROS2 standard).
-- ros_topic_name: "/beatnaut/imu"
-  gz_topic_name: "/beatnaut/imu"
+- ros_topic_name: "/asket_ec/imu"
+  gz_topic_name: "/asket_ec/imu"
   ros_type_name: "sensor_msgs/msg/Imu"
   gz_type_name: "gz.msgs.IMU"
   direction: GZ_TO_ROS
@@ -43,8 +43,8 @@
 # Gazebo publie la position GPS en gz.msgs.NavSat.
 # On convertit vers sensor_msgs/msg/NavSatFix (format ROS2 standard pour GPS).
 # NavSatFix contient : latitude, longitude, altitude + covariance de précision.
-- ros_topic_name: "/beatnaut/navsat"
-  gz_topic_name: "/beatnaut/navsat"
+- ros_topic_name: "/asket_ec/navsat"
+  gz_topic_name: "/asket_ec/navsat"
   ros_type_name: "sensor_msgs/msg/NavSatFix"
   gz_type_name: "gz.msgs.NavSat"
   direction: GZ_TO_ROS
@@ -55,8 +55,8 @@
 # On envoie une commande ROS2 (vitesse angulaire de l'hélice en rad/s)
 # qui est convertie et envoyée au ThrusterPlugin de Gazebo.
 # std_msgs/msg/Float64 = un simple nombre flottant 64 bits.
-- ros_topic_name: "/beatnaut/thruster/port/cmd"
-  gz_topic_name: "/beatnaut/thruster/port/cmd"
+- ros_topic_name: "/asket_ec/thruster/port/cmd"
+  gz_topic_name: "/asket_ec/thruster/port/cmd"
   ros_type_name: "std_msgs/msg/Float64"
   gz_type_name: "gz.msgs.Double"
   direction: ROS_TO_GZ
@@ -64,8 +64,8 @@
 # ---------------------------------------------------------
 # THRUSTER STARBOARD — Commande moteur droit
 # ---------------------------------------------------------
-- ros_topic_name: "/beatnaut/thruster/starboard/cmd"
-  gz_topic_name: "/beatnaut/thruster/starboard/cmd"
+- ros_topic_name: "/asket_ec/thruster/starboard/cmd"
+  gz_topic_name: "/asket_ec/thruster/starboard/cmd"
   ros_type_name: "std_msgs/msg/Float64"
   gz_type_name: "gz.msgs.Double"
   direction: ROS_TO_GZ
@@ -88,8 +88,8 @@
 # ODOMETRY — Position estimée du bateau (optionnel)
 # ---------------------------------------------------------
 # Utile pour le débogage — voir où Gazebo pense que le bateau est.
-- ros_topic_name: "/beatnaut/odometry"
-  gz_topic_name: "/beatnaut/odometry"
+- ros_topic_name: "/asket_ec/odometry"
+  gz_topic_name: "/asket_ec/odometry"
   ros_type_name: "nav_msgs/msg/Odometry"
   gz_type_name: "gz.msgs.Odometry"
   direction: GZ_TO_ROS
@@ -97,8 +97,8 @@
 # ---------------------------------------------------------
 # POSE — Position et orientation précises (pour le débogage)
 # ---------------------------------------------------------
-- ros_topic_name: "/beatnaut/pose"
-  gz_topic_name: "/world/beatnaut_world/model/beatnaut/pose"
+- ros_topic_name: "/asket_ec/pose"
+  gz_topic_name: "/world/asket_ec_world/model/asket_ec/pose"
   ros_type_name: "geometry_msgs/msg/PoseStamped"
   gz_type_name: "gz.msgs.Pose"
   direction: GZ_TO_ROS

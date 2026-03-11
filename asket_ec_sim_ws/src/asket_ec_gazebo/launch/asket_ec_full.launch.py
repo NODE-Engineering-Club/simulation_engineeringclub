@@ -1,5 +1,5 @@
 """
-beatnaut_full.launch.py — Launch file principal qui démarre TOUT
+asket_ec_full.launch.py — Launch file principal qui démarre TOUT
 
 =========================================================
 POURQUOI CE FICHIER ?
@@ -7,10 +7,10 @@ POURQUOI CE FICHIER ?
 Ce launch file est le "point d'entrée" de toute la simulation.
 Il lance en une seule commande :
 1. La simulation Gazebo (simulation.launch.py)
-2. Le nœud de contrôle différentiel (beatnaut_control)
+2. Le nœud de contrôle différentiel (asket_ec_control)
 
 Commande d'utilisation :
-  ros2 launch beatnaut_gazebo beatnaut_full.launch.py
+  ros2 launch asket_ec_gazebo asket_ec_full.launch.py
 
 Arguments disponibles :
   headless:=true       → Gazebo sans interface graphique
@@ -27,11 +27,11 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    """Lance l'intégralité de la stack de simulation Beatnaut."""
+    """Lance l'intégralité de la stack de simulation Asket EC."""
 
     # Chemins vers les packages
-    pkg_beatnaut_gazebo = get_package_share_directory('beatnaut_gazebo')
-    pkg_beatnaut_control = get_package_share_directory('beatnaut_control')
+    pkg_asket_ec_gazebo = get_package_share_directory('asket_ec_gazebo')
+    pkg_asket_ec_control = get_package_share_directory('asket_ec_control')
 
     # =========================================================
     # ARGUMENTS GLOBAUX
@@ -57,7 +57,7 @@ def generate_launch_description():
     # launch_arguments : transmettre les arguments au launch file inclus.
     simulation_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(pkg_beatnaut_gazebo, 'launch', 'simulation.launch.py')
+            os.path.join(pkg_asket_ec_gazebo, 'launch', 'simulation.launch.py')
         ),
         launch_arguments={
             'headless': LaunchConfiguration('headless'),
@@ -75,7 +75,7 @@ def generate_launch_description():
         period=3.0,  # secondes d'attente
         actions=[
             Node(
-                package='beatnaut_control',
+                package='asket_ec_control',
                 executable='differential_drive_node',
                 name='differential_drive_controller',
                 output='screen',

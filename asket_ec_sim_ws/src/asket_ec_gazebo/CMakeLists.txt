@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(beatnaut_gazebo)
+project(asket_ec_gazebo)
 
 find_package(ament_cmake REQUIRED)
 

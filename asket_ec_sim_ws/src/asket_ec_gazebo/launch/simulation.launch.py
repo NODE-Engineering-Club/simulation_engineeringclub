@@ -120,10 +120,12 @@ def generate_launch_description():
         output='screen',        # Afficher les logs Gazebo dans le terminal
         additional_env={
             # GZ_SIM_RESOURCE_PATH : dit à Gazebo où chercher les modèles
-            # On ajoute le dossier d'installation ROS2 pour trouver asket_ec.sdf
-            'GZ_SIM_RESOURCE_PATH': os.path.join(
-                os.environ.get('AMENT_PREFIX_PATH', '').split(':')[0],
-                '..', 'share'
+            # On construit le chemin à partir de tous les préfixes AMENT pour
+            # que package://asket_ec_description/... soit résolu correctement.
+            'GZ_SIM_RESOURCE_PATH': ':'.join(
+                os.path.join(p, 'share')
+                for p in os.environ.get('AMENT_PREFIX_PATH', '').split(':')
+                if p
             ),
         }
     )

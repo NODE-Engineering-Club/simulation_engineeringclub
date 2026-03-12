@@ -60,6 +60,10 @@
     <!-- Permet au modèle de bouger librement dans la simulation -->
     <static>false</static>
 
+    <!-- Pose initiale du bateau : z=0.15 pour être clairement au-dessus
+         du plan d'eau (z=0) et éviter toute pénétration géométrique initiale -->
+    <pose>0 0 0.15 0 0 0</pose>
+
     <!-- =====================================================
          LINK : HULL (COQUE PRINCIPALE)
          =====================================================
@@ -129,6 +133,22 @@
           </bounce>
         </surface>
       </collision>
+
+      <!--
+        VELOCITY DECAY — Amortissement linéaire et angulaire
+        Remplace temporairement le HydrodynamicsPlugin (désactivé pour
+        compatibilité DART/WSL2).
+
+        linear  0.3 : freine la translation (surge, sway, heave)
+        angular 0.5 : freine les rotations (roll, pitch, yaw)
+
+        Ces valeurs sont un amortissement proportionnel à la vitesse (F = -k×v),
+        similaire à la résistance linéaire de l'eau à faible vitesse.
+      -->
+      <velocity_decay>
+        <linear>0.3</linear>
+        <angular>0.5</angular>
+      </velocity_decay>
 
       <!--
         =====================================================
@@ -378,57 +398,12 @@
       </axis>
     </joint>
 
-    <!-- =====================================================
-         PLUGIN : HYDRODYNAMICS (RÉSISTANCE DE L'EAU)
-         =====================================================
-         Ce plugin simule la résistance hydrodynamique — la façon dont
-         l'eau freine le mouvement du bateau.
-
-         CONCEPT PHYSIQUE :
-         Un objet qui se déplace dans l'eau ressent deux types de résistance :
-         1. Résistance visqueuse (linéaire) : proportionnelle à la vitesse
-            F = -K × v
-         2. Résistance de pression (quadratique) : proportionnelle à v²
-            F = -K × v × |v|
-            Cette résistance domine à haute vitesse.
-
-         PARAMÈTRES (convention SNAME pour sous-marins/bateaux) :
-         Notation : x=avant/arrière, y=gauche/droite, z=haut/bas
-
-         Résistances linéaires (pour les faibles vitesses) :
-         - xDotU = -0.5   : résistance en surge (avant/arrière) linéaire
-         - yDotV = -10.0  : résistance en sway (latéral) linéaire
-                            (plus fort car le bateau est large)
-         - nDotR = -1.0   : résistance en yaw (rotation) linéaire
-
-         Résistances quadratiques (pour les hautes vitesses) :
-         - xUU = -5.0     : résistance en surge quadratique
-         - yVV = -50.0    : résistance en sway quadratique
-                            (très fort, le bateau est peu aérodynamique latéralement)
-         - nRR = -5.0     : résistance en yaw quadratique
-
-         Ces valeurs sont basées sur des modèles empiriques pour un
-         catamaran de 10kg. Elles peuvent être ajustées après tests.
+    <!--
+      HydrodynamicsPlugin désactivé temporairement — incompatible avec DART
+      sous WSL2 (provoque "ODE INTERNAL ERROR in collide()").
+      L'amortissement est remplacé par <velocity_decay> sur le link hull.
+      Ce plugin sera réintroduit quand la compatibilité DART sera confirmée.
     -->
-    <plugin
-      filename="gz-sim-hydrodynamics-system"
-      name="gz::sim::systems::Hydrodynamics">
-      <link_name>hull</link_name>
-      <!-- Résistances linéaires -->
-      <xDotU>-0.5</xDotU>
-      <yDotV>-10.0</yDotV>
-      <zDotW>-20.0</zDotW>
-      <kDotP>-0.1</kDotP>
-      <mDotQ>-0.5</mDotQ>
-      <nDotR>-1.0</nDotR>
-      <!-- Résistances quadratiques (proportionnelles à v²) -->
-      <xUU>-5.0</xUU>
-      <yVV>-50.0</yVV>
-      <zWW>-100.0</zWW>
-      <kPP>-0.1</kPP>
-      <mQQ>-1.0</mQQ>
-      <nRR>-5.0</nRR>
-    </plugin>
 
     <!-- =====================================================
          PLUGIN : THRUSTER PORT (PROPULSEUR GAUCHE)

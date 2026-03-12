@@ -28,18 +28,18 @@
       =====================================================
       PARAMÈTRES PHYSIQUES
       =====================================================
-      Le moteur physique ODE (Open Dynamics Engine) est utilisé par défaut.
-      Ces paramètres affectent la précision et la stabilité de la simulation.
+      Moteur physique DART (Dynamic Animation and Robotics Toolkit).
+      Plus stable que ODE sous WSL2 avec le BuoyancyPlugin — évite
+      le crash "ODE INTERNAL ERROR in collide()" au premier step.
 
       max_step_size : pas de temps de simulation = 1ms
                       Plus petit = plus précis mais plus lent à calculer
-                      Pour de l'hydrodynamique, 1-4ms est recommandé
+                      Pour de la flottaison, 1-4ms est recommandé
 
       real_time_factor : vitesse de simulation par rapport au temps réel
                          1.0 = temps réel
-                         0.5 = simulation 2x plus lente que la réalité
     -->
-    <physics name="1ms" type="ignored">
+    <physics name="1ms" type="dart">
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1.0</real_time_factor>
     </physics>
@@ -157,7 +157,7 @@
           <geometry>
             <plane>
               <normal>0 0 1</normal>    <!-- Normale vers le haut = plan horizontal -->
-              <size>1000 1000</size>    <!-- 1km × 1km = "infini" pour nos besoins -->
+              <size>50 50</size>         <!-- 50m × 50m — taille réduite pour limiter la charge de collision -->
             </plane>
           </geometry>
           <material>

@@ -12,9 +12,9 @@ No Gazebo — pure Python simulator running at 50Hz, displayed in RViz2.
 The **Asket EC** is a real autonomous catamaran built by the club. Before testing
 navigation algorithms on the physical boat, we simulate them here.
 
-This simulator reproduces the boat's physics (propulsion, drag, heading) and
-lets you define GPS waypoints the boat should reach automatically. Everything
-runs in Python — no heavy simulation engine needed.
+The simulation includes the boat's physics, a camera sensor that detects buoy
+gates, and a navigator that steers the boat through each gate automatically.
+Everything runs in Python — no heavy simulation engine needed.
 
 ---
 
@@ -48,9 +48,11 @@ are kept in the repo for reference and potential future use.
 asket_ec_sim2d/
 ├── asket_ec_sim2d/
 │   ├── simulator_node.py           # boat physics at 50Hz
-│   └── waypoint_navigator_node.py  # GPS navigation logic
+│   ├── buoy_simulator_node.py      # camera sensor — detects buoys and gates
+│   └── waypoint_navigator_node.py  # navigation brain — steers through gates
 ├── config/
-│   ├── waypoints.yaml              # GPS target points (edit this!)
+│   ├── waypoints.yaml              # GPS target points (fallback)
+│   ├── buoys.yaml                  # gate definitions (red + green buoy pairs)
 │   └── sim2d.rviz                  # RViz2 display configuration
 ├── launch/
 │   └── sim2d.launch.py
@@ -70,7 +72,7 @@ asket_ec_sim2d/
 
 > **New to ROS2?** Think of ROS2 as a messaging system that lets separate
 > programs (called *nodes*) talk to each other. One node simulates physics,
-> another reads waypoints, another draws the result — they all communicate
+> another simulates the camera, another decides where to go — they all communicate
 > through named *topics*.
 
 ---
@@ -110,9 +112,8 @@ source install/setup.bash
 
 ### Step 3 — Install the Python nodes
 
-This step makes the two simulator programs (`simulator_node` and
-`waypoint_navigator_node`) runnable as commands from any terminal — not just
-from inside the project folder.
+This step makes all three simulator programs runnable as commands from any
+terminal — not just from inside the project folder.
 
 ```bash
 cd src/asket_ec_sim2d
@@ -148,52 +149,50 @@ source /opt/ros/jazzy/setup.bash
 ~/.local/bin/simulator_node
 ```
 
-**What it does:** simulates the boat's position, heading, and speed at 50Hz
-using a differential drive model (two motors, like a tank). It listens for
-movement commands and publishes the updated state continuously.
+**What it does:** the physics engine. It moves the boat based on commands it
+receives, and publishes the boat's position and heading 50 times per second.
+Think of it as the boat's hull and motors.
 
 **Expected output:**
 ```
 [INFO] Simulateur 2D Asket EC démarré
-[INFO] Publication à 50Hz sur /sim2d/pose, /sim2d/path, /sim2d/odom, /sim2d/navsat
 ```
-
-**Topics published:**
-| Topic | Description |
-|-------|-------------|
-| `/sim2d/pose` | current position and heading of the boat |
-| `/sim2d/path` | full trajectory since start (the green trail) |
-| `/sim2d/odom` | odometry (speed and displacement) |
-| `/sim2d/navsat` | simulated GPS fix, anchored on Barcelona |
-
-**Topic subscribed:**
-| Topic | Description |
-|-------|-------------|
-| `/cmd_vel` | movement commands (speed and turn rate) |
 
 ---
 
-### Terminal 2 — Waypoint navigator (automatic mode)
+### Terminal 2 — Camera sensor + Navigator
 
 ```bash
 source /opt/ros/jazzy/setup.bash
+~/.local/bin/buoy_simulator_node &
 ~/.local/bin/waypoint_navigator_node
 ```
 
-**What it does:** reads the GPS waypoints from `config/waypoints.yaml`, sorts
-them from closest to furthest, then steers the boat toward each one
-automatically by publishing to `/cmd_vel`. It moves to the next waypoint when
-the boat is within 2 metres.
+> The `&` runs `buoy_simulator_node` in the background so both nodes share
+> the same terminal window.
+
+**`buoy_simulator_node` — the camera sensor:**
+reads `config/buoys.yaml`, places red and green buoys on the map, and at 10Hz
+checks which buoys are currently in the boat's field of view (15m range, ±60°).
+It computes the midpoint of each gate and sends those positions to the navigator.
 
 **Expected output:**
 ```
-[INFO] Waypoints chargés : 2 points
-[INFO] Sorted waypoints: [(41.3851, 2.1734), (41.3860, 2.1750)]
-[INFO] Navigation vers waypoint 1/2
+[INFO] Buoy simulator started — 3 gates loaded
 ```
 
-> **Note:** Terminal 2 and Terminal 1 must both be running. Terminal 2 sends
-> commands, Terminal 1 executes the physics.
+**`waypoint_navigator_node` — the navigation brain:**
+decides where the boat should go next. If gate centres are available (from
+`buoy_simulator_node`), it steers the boat through each gate in order using pure
+pursuit. If no gates are published, it falls back to `config/waypoints.yaml`.
+
+**Expected output:**
+```
+[INFO] Gate navigation activated — 3 gates received
+[INFO] Gate 1 passed ✓
+[INFO] Gate 2 passed ✓
+...
+```
 
 ---
 
@@ -206,62 +205,58 @@ rviz2 -d ~/simulation_engineeringclub/asket_ec_sim_ws/src/asket_ec_sim2d/config/
 
 **What it does:** opens RViz2 with a pre-configured layout showing:
 
-| Colour | What you see | ROS2 topic |
-|--------|-------------|------------|
+| Colour / Shape | What you see | ROS2 topic |
+|----------------|-------------|------------|
 | Green line | Boat's actual trajectory so far | `/sim2d/path` |
-| Red line | Planned route through all waypoints | `/waypoints/path` |
+| Red line | Planned route (waypoints fallback) | `/waypoints/path` |
+| White line | Gate-to-gate navigation route | `/gates/centers` |
+| Red spheres | Red buoys (bright = visible, dim = out of range) | `/buoys/all` |
+| Green spheres | Green buoys (bright = visible, dim = out of range) | `/buoys/all` |
+| Labels | "GATE X - RED/GREEN" above detected buoys | `/buoys/detected` |
 | Arrow | Current position and heading of the boat | `/sim2d/pose` |
 | Grid | Reference plane (Fixed Frame: `odom`) | — |
 
 **How to read what you see:**
-- The **green line** grows over time as the boat moves — it is the history of
-  where the boat has been.
-- The **red line** is the planned route connecting all waypoints in order.
-- The **arrow** shows where the boat is right now and which direction it faces.
-- If nothing appears, make sure Terminal 1 is running and you sourced ROS2.
+- The **green line** grows over time — it is the history of where the boat has been.
+- The **white line** connects all gate centres in order — the planned slalom route.
+- **Bright buoys** are currently in the camera's field of view. **Dim buoys** (alpha 0.2) exist in the world but are too far away or behind the boat.
+- If nothing appears, check that Terminal 1 and 2 are running and that you sourced ROS2.
 
 ---
 
-## Editing waypoints
+## Editing gates and waypoints
 
-Waypoints are GPS coordinates the boat navigates toward in order.
-Open the file:
+### Gate definitions (`config/buoys.yaml`)
 
+Each gate has one red buoy (starboard / right side) and one green buoy (port /
+left side). The boat navigates to the midpoint between them.
+
+```yaml
+gates:
+  - id: 1
+    red:   {lat: 41.3853, lon: 2.1733}   # keep to the right when passing
+    green: {lat: 41.3853, lon: 2.1737}   # keep to the left  when passing
+  - id: 2
+    ...
 ```
-asket_ec_sim_ws/src/asket_ec_sim2d/config/waypoints.yaml
-```
 
-It looks like this:
+To change the course, edit the GPS coordinates. `0.0001` degrees ≈ 11 metres.
+
+### Fallback waypoints (`config/waypoints.yaml`)
+
+Used only if `buoy_simulator_node` is not running.
 
 ```yaml
 waypoints:
-  # Each entry is one GPS target point.
-  # lat = latitude  (north/south, between -90 and +90)
-  # lon = longitude (east/west,  between -180 and +180)
-  #
-  # Barcelona reference point: lat 41.3851, lon 2.1734
-  # Moving north increases lat. Moving east increases lon.
-  # 0.0001 degrees ≈ 11 metres.
-
-  - {lat: 41.3851, lon: 2.1734}   # starting area
-  - {lat: 41.3860, lon: 2.1750}   # ~170m north-east
+  - {lat: 41.3851, lon: 2.1734}
+  - {lat: 41.3860, lon: 2.1750}
 ```
-
-**To add a new waypoint**, copy one line and change the coordinates. The
-navigator will automatically sort all waypoints from closest to the boat's
-starting position to furthest.
-
-> **GPS coordinates in simple terms:**
-> Latitude tells you how far north or south you are. Longitude tells you how
-> far east or west. Barcelona is at roughly 41.4°N, 2.2°E. A change of 0.0001
-> in either coordinate is about 11 metres on the ground.
 
 ---
 
 ## Manual control (instead of Terminal 2)
 
-If you want to steer the boat yourself instead of using the automatic navigator,
-skip Terminal 2 and run this command:
+Skip Terminal 2 and run this to steer the boat yourself:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -270,27 +265,10 @@ ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \
   --rate 10
 ```
 
-Edit the two values to control the boat:
-
 | Parameter | Effect | Range |
 |-----------|--------|-------|
-| `linear.x` | **speed** — positive = forward, negative = backward | −1.0 to +1.0 |
+| `linear.x` | **speed** — positive = forward, negative = backward | −1.5 to +1.5 |
 | `angular.z` | **turning** — positive = left, negative = right | −1.0 to +1.0 |
-
-Examples:
-```bash
-# Go straight forward
-"{linear: {x: 0.5}, angular: {z: 0.0}}"
-
-# Turn left while moving
-"{linear: {x: 0.3}, angular: {z: 0.6}}"
-
-# Spin in place to the right
-"{linear: {x: 0.0}, angular: {z: -1.0}}"
-
-# Stop
-"{linear: {x: 0.0}, angular: {z: 0.0}}"
-```
 
 ---
 
@@ -301,14 +279,20 @@ Examples:
 The Asket EC has two independent motors (left and right). Like a tank, it turns
 by spinning one motor faster than the other. The simulator models this with:
 - Motor spacing: 0.5 m
-- Water drag coefficient: 3.0
+- Water drag coefficient: 0.6 (terminal velocity ~2.5 m/s at full thrust)
 - Simulation step: 50Hz (every 20ms)
+
+### Camera sensor model
+
+`buoy_simulator_node` simulates what a real camera would see:
+- **Range:** 15 m maximum detection distance
+- **Field of view:** ±60° relative to the boat heading (120° total)
+- **Noise:** Gaussian noise added to measured distance (σ = 0.3 m) and bearing
+  (σ = 2°) to simulate real camera imprecision
 
 ### Pure pursuit navigation (in plain language)
 
-The waypoint navigator uses a simplified *pure pursuit* algorithm:
-
-1. Calculate the angle from the boat's current heading to the target waypoint.
+1. Calculate the angle from the boat's current heading to the target gate centre.
 2. If the target is to the left, turn left. If to the right, turn right.
    The further off-course, the sharper the turn.
 3. Slow down when turning hard, go fast when pointed directly at the target.
@@ -319,27 +303,88 @@ No complex path planning — just "look at the target and steer toward it."
 
 ROS2 uses a system called **TF2** to track the position of every part of a
 robot relative to every other part. RViz2 needs a valid TF tree to know where
-to draw things. The simulator publishes a simple transform from the `odom` frame
-(world origin) to the `base_link` frame (the boat), which is why RViz2 can
-display the boat's position correctly.
+to draw things. The simulator publishes a transform from the `odom` frame
+(world origin) to the `base_link` frame (the boat).
 
 ### GPS to local coordinates
 
 The real world uses GPS (latitude/longitude), but physics simulations work in
 metres on a flat plane (x/y). The simulator converts between the two using the
-Barcelona reference point (41.3851°N, 2.1734°E) as the origin (0, 0). Every
-waypoint is converted to metres from that origin before navigation begins.
+Barcelona reference point (41.3851°N, 2.1734°E) as the origin (0, 0).
+
+---
+
+## ROS2 Topics reference
+
+| Topic | Type | Publisher | Subscriber | Description |
+|-------|------|-----------|------------|-------------|
+| `/cmd_vel` | `geometry_msgs/Twist` | navigator or manual | `simulator_node` | Speed and turn commands |
+| `/sim2d/pose` | `geometry_msgs/PoseStamped` | `simulator_node` | buoy\_simulator, navigator | Boat position and heading |
+| `/sim2d/path` | `nav_msgs/Path` | `simulator_node` | RViz2 | Full trajectory history |
+| `/sim2d/odom` | `nav_msgs/Odometry` | `simulator_node` | — | Odometry data |
+| `/sim2d/navsat` | `sensor_msgs/NavSatFix` | `simulator_node` | — | Simulated GPS (Barcelona origin) |
+| `/buoys/all` | `visualization_msgs/MarkerArray` | `buoy_simulator` | RViz2 | All buoys — bright if visible, dim if not |
+| `/buoys/detected` | `visualization_msgs/MarkerArray` | `buoy_simulator` | RViz2 | Currently visible buoys with labels |
+| `/gates/centers` | `nav_msgs/Path` | `buoy_simulator` | `waypoint_navigator` | Gate midpoints to navigate through |
+
+---
+
+## From simulation to real hardware
+
+The key principle of this simulation is **topic compatibility**. Every simulated
+sensor publishes on the exact same ROS2 topic with the exact same message type as
+the real sensor will use. This means the navigation algorithms
+(`waypoint_navigator_node`) do not need to change at all when moving to real
+hardware — only the data source changes.
+
+| Simulated component | Real hardware equivalent |
+|---------------------|--------------------------|
+| `simulator_node` → `/sim2d/pose` | GPS + IMU driver on the real boat |
+| `buoy_simulator_node` → `/buoys/detected` | OpenCV color detection node (real camera feed) |
+| `buoy_simulator_node` → `/gates/centers` | Same node — no change needed |
+| `waypoint_navigator_node` | Same node — no change needed |
+| `/cmd_vel` topic | Motor controller node (converts Twist → PWM signals) |
+| `config/waypoints.yaml` | QGroundControl mission upload via MAVLink |
+
+When you run on real hardware, you swap out `simulator_node` for a real GPS/IMU
+driver, and `buoy_simulator_node` for a real camera detection node. The navigator
+keeps running unchanged because it only cares about topic names and message types,
+not where the data comes from.
 
 ---
 
 ## Roadmap
 
+### Done
+
 - [x] 2D physics simulator (50Hz, differential drive)
 - [x] GPS waypoint navigation (pure pursuit)
 - [x] RViz2 visualisation (trajectory + waypoints)
+- [x] Buoy gate simulation (red + green pairs)
+- [x] Camera sensor simulation with field of view and Gaussian noise
+- [x] Automatic gate-to-gate navigation
+
+### Next steps — simulation
+
 - [ ] Manual / automatic mode switching via ROS2 topic
+      → publish `True`/`False` on `/manual_mode` to override the navigator
+- [ ] LIDAR obstacle simulation
+      → publish `sensor_msgs/LaserScan` on `/scan` with simulated obstacles
+- [ ] Obstacle avoidance algorithm
+      → modify `waypoint_navigator` to detour around detected obstacles
+- [ ] Keyboard teleoperation node
+      → control the boat with arrow keys in manual mode
+
+### Next steps — real hardware integration
+
+- [ ] Replace `simulator_node` with real GPS + IMU driver
+      → same `/sim2d/pose` topic, real data
+- [ ] Replace `buoy_simulator_node` with OpenCV color detection node
+      → same `/buoys/detected` and `/gates/centers` topics, real camera feed
+- [ ] Connect `/cmd_vel` to motor controller
+      → ROS2 node that converts Twist messages to PWM signals
 - [ ] QGroundControl integration via MAVLink + MAVROS
-- [ ] Wind and current disturbances
+      → upload waypoint missions from QGC, receive on `/gates/centers`
 
 ---
 

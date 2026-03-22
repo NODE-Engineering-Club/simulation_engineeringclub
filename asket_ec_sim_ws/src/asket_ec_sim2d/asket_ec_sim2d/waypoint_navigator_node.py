@@ -44,11 +44,20 @@ TOPICS
 =========================================================
 Souscrit :
   /sim2d/pose        (geometry_msgs/PoseStamped) — position + cap courant
+  /gates/centers     (nav_msgs/Path)              — centres de portes (priorité)
 
 Publie :
   /cmd_vel           (geometry_msgs/Twist)        — commandes de navigation
   /waypoints/path    (nav_msgs/Path)              — tous les waypoints (rouge RViz2)
   /waypoints/current (geometry_msgs/PointStamped) — waypoint cible actuel
+
+=========================================================
+PRIORITÉ DE SOURCE DES WAYPOINTS
+=========================================================
+  1. /gates/centers (depuis buoy_simulator_node) — si reçu, utilise les
+     centres de portes comme waypoints et log "Gate X passed ✓" à chaque
+     franchissement.
+  2. waypoints.yaml — fallback si aucune porte n'est publiée.
 """
 
 import math
@@ -121,7 +130,9 @@ class WaypointNavigatorNode(Node):
                 waypoints_file = os.path.join(here, '..', 'config',
                                               'waypoints.yaml')
 
-        self.waypoints = self._load_waypoints(waypoints_file)
+        self.yaml_waypoints = self._load_waypoints(waypoints_file)
+        # Active waypoint list — replaced by gate centres when available
+        self.waypoints = list(self.yaml_waypoints)
 
         if not self.waypoints:
             self.get_logger().error(
@@ -138,14 +149,24 @@ class WaypointNavigatorNode(Node):
 
         self.current_wp_idx = 0     # Index du waypoint cible courant
         self.mission_complete = False
+        self.using_gates = False     # True when navigating gate centres
 
         # =========================================================
-        # SOUSCRIPTION
+        # SOUSCRIPTIONS
         # =========================================================
         self.sub_pose = self.create_subscription(
             PoseStamped,
             '/sim2d/pose',
             self.pose_callback,
+            10
+        )
+
+        # Gate centres published by buoy_simulator_node.
+        # If received, they replace waypoints.yaml as the navigation target.
+        self.sub_gates = self.create_subscription(
+            Path,
+            '/gates/centers',
+            self.gate_centers_callback,
             10
         )
 
@@ -167,7 +188,8 @@ class WaypointNavigatorNode(Node):
             f'Navigateur waypoints démarré\n'
             f'  {len(self.waypoints)} waypoints chargés (triés par distance)\n'
             f'  Seuil arrivée : {WAYPOINT_RADIUS} m\n'
-            f'  Premier waypoint : {self.waypoints[0]}'
+            f'  Premier waypoint : {self.waypoints[0]}\n'
+            f'  En attente de /gates/centers (priorité sur waypoints.yaml)…'
         )
 
     def _load_waypoints(self, filepath):
@@ -205,6 +227,39 @@ class WaypointNavigatorNode(Node):
                       for i, p in enumerate(local_pts))
         )
         return local_pts
+
+    def gate_centers_callback(self, msg):
+        """
+        Receive gate centres from buoy_simulator_node.
+
+        On first reception, switch navigation source from waypoints.yaml
+        to gate centres and reset the waypoint index.  Subsequent calls
+        keep the list up to date without resetting progress.
+        """
+        if not msg.poses:
+            return
+
+        gate_centers = [
+            (ps.pose.position.x, ps.pose.position.y)
+            for ps in msg.poses
+        ]
+
+        if not self.using_gates:
+            self.waypoints = gate_centers
+            self.current_wp_idx = 0
+            self.mission_complete = False
+            self.using_gates = True
+            self.get_logger().info(
+                f'Gate navigation activated — '
+                f'{len(gate_centers)} gates received (replacing waypoints.yaml)\n' +
+                '\n'.join(
+                    f'  Gate {i + 1}: center=({cx:.1f}m, {cy:.1f}m)'
+                    for i, (cx, cy) in enumerate(gate_centers)
+                )
+            )
+        else:
+            # Update positions in case buoy_simulator published an update
+            self.waypoints = gate_centers
 
     def pose_callback(self, msg):
         """Met à jour la position et le cap du bateau."""
@@ -252,25 +307,38 @@ class WaypointNavigatorNode(Node):
         distance = math.hypot(dx, dy)
 
         if distance < WAYPOINT_RADIUS:
-            self.get_logger().info(
-                f'Waypoint [{self.current_wp_idx}] atteint '
-                f'(distance={distance:.2f}m)'
-            )
+            if self.using_gates:
+                gate_number = self.current_wp_idx + 1  # gate IDs start at 1
+                self.get_logger().info(
+                    f'Gate {gate_number} passed ✓  (distance={distance:.2f}m)')
+            else:
+                self.get_logger().info(
+                    f'Waypoint [{self.current_wp_idx}] atteint '
+                    f'(distance={distance:.2f}m)')
+
             self.current_wp_idx += 1
 
             if self.current_wp_idx >= len(self.waypoints):
-                self.get_logger().info(
-                    'Mission complète — tous les waypoints atteints !')
+                if self.using_gates:
+                    self.get_logger().info(
+                        'All gates passed ✓  Mission complete!')
+                else:
+                    self.get_logger().info(
+                        'Mission complète — tous les waypoints atteints !')
                 self.mission_complete = True
-                # Arrêt moteurs
                 self.pub_cmd_vel.publish(Twist())
                 return
 
-            self.get_logger().info(
-                f'→ Prochain waypoint [{self.current_wp_idx}] : '
-                f'x={self.waypoints[self.current_wp_idx][0]:.1f}m '
-                f'y={self.waypoints[self.current_wp_idx][1]:.1f}m'
-            )
+            if self.using_gates:
+                next_x, next_y = self.waypoints[self.current_wp_idx]
+                self.get_logger().info(
+                    f'→ Heading to gate {self.current_wp_idx + 1}: '
+                    f'x={next_x:.1f}m y={next_y:.1f}m')
+            else:
+                self.get_logger().info(
+                    f'→ Prochain waypoint [{self.current_wp_idx}] : '
+                    f'x={self.waypoints[self.current_wp_idx][0]:.1f}m '
+                    f'y={self.waypoints[self.current_wp_idx][1]:.1f}m')
             return
 
         # --- Pure pursuit simplifié ---

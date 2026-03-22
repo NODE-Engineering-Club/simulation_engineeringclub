@@ -1,4 +1,4 @@
-# Asket EC — 2D Navigation Simulator
+# 2D Navigation Simulator
 
 Autonomous boat simulator for NODE Engineering Club.
 **Goal:** test GPS waypoint navigation algorithms without physical hardware.

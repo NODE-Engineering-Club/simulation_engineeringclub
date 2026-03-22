@@ -1,0 +1,33 @@
+# buoys.yaml — Gate definitions for the Asket EC 2D simulator
+#
+# Each gate consists of one red buoy (starboard / right side)
+# and one green buoy (port / left side). Nautical convention:
+#   Red   → starboard (keep to the right when passing)
+#   Green → port      (keep to the left  when passing)
+#
+# The boat must pass BETWEEN the two buoys of each gate.
+# Gate center = midpoint between red and green buoys.
+#
+# Coordinates are GPS (WGS84 decimal degrees).
+# Origin: 41.3851°N, 2.1734°E (Barcelona harbour)
+#
+# Gate layout (top-down view, north up):
+#
+#   Gate 3:  R ----center---- G   (~110m north)
+#   Gate 2:  R ----center---- G   (~67m  north)
+#   Gate 1:  R ----center---- G   (~22m  north)
+#            ^                ^
+#         ~8m west        ~25m east
+
+gates:
+  - id: 1
+    red:   {lat: 41.3853, lon: 2.1733}   # starboard (right) buoy
+    green: {lat: 41.3853, lon: 2.1737}   # port      (left)  buoy
+
+  - id: 2
+    red:   {lat: 41.3857, lon: 2.1733}
+    green: {lat: 41.3857, lon: 2.1737}
+
+  - id: 3
+    red:   {lat: 41.3861, lon: 2.1733}
+    green: {lat: 41.3861, lon: 2.1737}

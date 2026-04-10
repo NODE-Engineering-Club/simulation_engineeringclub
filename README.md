@@ -50,6 +50,7 @@ asket_ec_sim2d/
 │   ├── simulator_node.py           # boat physics at 50Hz
 │   ├── buoy_simulator_node.py      # camera sensor — detects buoys and gates
 │   ├── waypoint_navigator_node.py  # navigation brain — steers through gates
+│   ├── lidar_simulator_node.py     # 360° LIDAR — obstacle detection on /scan
 │   └── keyboard_teleop_node.py     # keyboard teleoperation — MANUAL/AUTO mode
 ├── config/
 │   ├── waypoints.yaml              # GPS target points (fallback)
@@ -320,6 +321,67 @@ source /opt/ros/jazzy/setup.bash
 
 ---
 
+## LIDAR simulation and obstacle avoidance
+
+### LIDAR simulation
+
+The LIDAR simulator is started automatically by the launch file.  You can also
+run it manually in Terminal 2 alongside the other nodes:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+~/.local/bin/lidar_simulator_node &
+```
+
+- Simulates a **360° planar LIDAR** with **10 m range** and **1° resolution**
+- Publishes `sensor_msgs/LaserScan` on `/scan` — the same topic a real LIDAR
+  (e.g. RPLiDAR) would use, so the navigator needs no changes for real hardware
+- Obstacles are defined in `config/obstacles.yaml`:
+
+```yaml
+obstacles:
+  - {x: 8.3,  y: 11.0, radius: 1.5}   # metres from Barcelona origin
+  - {x: 3.0,  y: 33.0, radius: 1.5}
+  - {x: 14.0, y: 55.0, radius: 1.5}
+  - {x: 5.0,  y: 77.0, radius: 1.5}
+```
+
+Each obstacle is a **circle** (`x`, `y` = centre position in metres,
+`radius` in metres).  The LIDAR casts a ray for each degree and reports
+the distance to the nearest circle boundary using ray-circle intersection
+geometry.  Grey cylinders appear in RViz2 on `/obstacles/markers`.
+
+### Obstacle avoidance (VFH)
+
+The navigator reads the LIDAR scan at every 10 Hz control step and applies a
+**Vector Field Histogram** (VFH) avoidance strategy:
+
+1. **Danger check:** scan rays within ±30° of the boat's heading
+   (the forward cone) are inspected.  If any ray is closer than **2.5 m**,
+   an obstacle is declared in front.
+
+2. **Side selection:** the left sector (0° – 90° in scan) and the right
+   sector (270° – 360° in scan) are averaged.  The boat deviates **45°**
+   toward the side with **more free space**.
+
+3. **Avoidance:** the navigator steers toward the avoidance heading at
+   reduced speed (linear.x = 0.3) until the obstacle is cleared.
+
+4. **Resume:** once no ray in the front cone is below 2.5 m, normal pure
+   pursuit toward the current gate centre resumes automatically.
+
+Avoidance is **only active in AUTO mode** — in MANUAL mode the LIDAR data
+is collected but the navigator does not publish any commands.
+
+Log messages:
+
+```
+[INFO] Obstacle detected — avoiding to the LEFT
+[INFO] Obstacle cleared — resuming navigation to gate 2
+```
+
+---
+
 ## How it works (technical overview)
 
 ### Differential drive physics
@@ -376,6 +438,8 @@ Barcelona reference point (41.3851°N, 2.1734°E) as the origin (0, 0).
 | `/gates/centers` | `nav_msgs/Path` | `buoy_simulator` | `waypoint_navigator` | Gate midpoints to navigate through |
 | `/manual_mode` | `std_msgs/Bool` | `keyboard_teleop` | `waypoint_navigator` | true=MANUAL false=AUTO |
 | `/current_mode` | `std_msgs/String` | `waypoint_navigator` | — | Current mode published at 1 Hz |
+| `/scan` | `sensor_msgs/LaserScan` | `lidar_simulator` | `waypoint_navigator` | 360° LIDAR scan, 10 m range |
+| `/obstacles/markers` | `visualization_msgs/MarkerArray` | `lidar_simulator` | RViz2 | Obstacle visualisation (grey cylinders) |
 
 ---
 
@@ -420,10 +484,10 @@ not where the data comes from.
       → publish `True`/`False` on `/manual_mode` to override the navigator
 - [x] Keyboard teleoperation node
       → control the boat with arrow keys in manual mode
-- [ ] LIDAR obstacle simulation
+- [x] LIDAR obstacle simulation
       → publish `sensor_msgs/LaserScan` on `/scan` with simulated obstacles
-- [ ] Obstacle avoidance algorithm
-      → modify `waypoint_navigator` to detour around detected obstacles
+- [x] Obstacle avoidance algorithm (VFH)
+      → navigator detours around obstacles, resumes from closest unpassed gate
 
 ### Next steps — real hardware integration
 

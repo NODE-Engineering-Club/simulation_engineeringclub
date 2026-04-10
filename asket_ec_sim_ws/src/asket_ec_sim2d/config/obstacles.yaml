@@ -1,0 +1,24 @@
+# obstacles.yaml — Circular obstacle definitions for the LIDAR simulator
+#
+# Each obstacle is a filled circle in the 2D world (top-down view).
+# The LIDAR simulator casts rays against these circles to produce
+# a realistic sensor_msgs/LaserScan on /scan.
+#
+# Fields:
+#   x      — east  position from Barcelona origin (metres)
+#   y      — north position from Barcelona origin (metres)
+#   radius — circle radius (metres)
+#
+# Obstacle layout (top-down, north up):
+#
+#   y=77  ·····O·····    obstacle 4  (x= 5.0)
+#   y=55  ···O·········  obstacle 3  (x=14.0)
+#   y=33  ·O···········  obstacle 2  (x= 3.0)
+#   y=11  ·········O···  obstacle 1  (x= 8.3)
+#         ^   origin (0,0) = boat start
+
+obstacles:
+  - {x:  8.3, y: 11.0, radius: 1.5}
+  - {x:  3.0, y: 33.0, radius: 1.5}
+  - {x: 14.0, y: 55.0, radius: 1.5}
+  - {x:  5.0, y: 77.0, radius: 1.5}

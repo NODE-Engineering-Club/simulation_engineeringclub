@@ -46,6 +46,7 @@ Souscrit :
   /sim2d/pose        (geometry_msgs/PoseStamped) — position + cap courant
   /gates/centers     (nav_msgs/Path)              — centres de portes (priorité)
   /manual_mode       (std_msgs/Bool)              — True=MANUAL, False=AUTO
+  /scan              (sensor_msgs/LaserScan)       — données LIDAR (VFH avoidance)
 
 Publie :
   /cmd_vel           (geometry_msgs/Twist)        — commandes de navigation
@@ -69,6 +70,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PointStamped, PoseStamped, Twist
 from nav_msgs.msg import Path
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Bool, String
 
 try:
@@ -83,6 +85,13 @@ EARTH_RADIUS = 6_371_000.0
 
 # Seuil d'arrivée à un waypoint (mètres)
 WAYPOINT_RADIUS = 2.0
+
+# =========================================================
+# VFH OBSTACLE AVOIDANCE PARAMETERS
+# =========================================================
+DANGER_DISTANCE = 2.5           # m  — obstacle closer than this triggers avoidance
+AVOID_ANGLE = math.radians(45)  # rad — heading deviation when avoiding
+FRONT_CONE_HALF = 30            # °  — half-width of the forward danger cone
 
 
 def gps_to_local(lat, lon):
@@ -165,6 +174,14 @@ class WaypointNavigatorNode(Node):
         self.manual_mode = False    # False = AUTO, True = MANUAL
 
         # =========================================================
+        # VFH OBSTACLE AVOIDANCE STATE
+        # =========================================================
+        self.scan_ranges = None     # Latest LIDAR scan (360 floats) or None
+        self.avoiding = False       # True when actively detouring an obstacle
+        self.avoid_heading = 0.0   # Target heading during avoidance (rad, world frame)
+        self.avoid_side = ''        # 'LEFT' or 'RIGHT'
+
+        # =========================================================
         # SOUSCRIPTIONS
         # =========================================================
         self.sub_pose = self.create_subscription(
@@ -189,6 +206,14 @@ class WaypointNavigatorNode(Node):
             '/manual_mode',
             self.manual_mode_callback,
             10
+        )
+
+        # LIDAR scan for VFH obstacle avoidance
+        self.sub_scan = self.create_subscription(
+            LaserScan,
+            '/scan',
+            self.scan_callback,
+            10,
         )
 
         # =========================================================
@@ -350,6 +375,10 @@ class WaypointNavigatorNode(Node):
             # Update positions in case buoy_simulator published an update
             self.waypoints = gate_centers
 
+    def scan_callback(self, msg):
+        """Store the latest LIDAR scan for VFH obstacle avoidance."""
+        self.scan_ranges = list(msg.ranges)
+
     def pose_callback(self, msg):
         """Met à jour la position et le cap du bateau."""
         self.current_x = msg.pose.position.x
@@ -437,19 +466,54 @@ class WaypointNavigatorNode(Node):
                     f'y={self.waypoints[self.current_wp_idx][1]:.1f}m')
             return
 
-        # --- Pure pursuit simplifié ---
-        # Angle vers le waypoint dans le référentiel monde
-        angle_to_wp = math.atan2(dy, dx)
+        # --- VFH obstacle avoidance ---
+        # Check scan rays within the forward danger cone (±FRONT_CONE_HALF°)
+        obstacle_in_front = False
+        if self.scan_ranges is not None and len(self.scan_ranges) == 360:
+            n = len(self.scan_ranges)
+            front_indices = (
+                list(range(0, FRONT_CONE_HALF + 1)) +
+                list(range(n - FRONT_CONE_HALF, n))
+            )
+            for i in front_indices:
+                if self.scan_ranges[i] < DANGER_DISTANCE:
+                    obstacle_in_front = True
+                    break
 
-        # Erreur angulaire = différence entre cap voulu et cap actuel
-        angle_error = normalize_angle(angle_to_wp - self.current_heading)
+        if obstacle_in_front:
+            if not self.avoiding:
+                # First detection — choose the side with more free space
+                left_avg = sum(self.scan_ranges[i] for i in range(0, 91)) / 91
+                right_avg = sum(self.scan_ranges[i] for i in range(270, 360)) / 90
+                if left_avg >= right_avg:
+                    self.avoid_side = 'LEFT'
+                    self.avoid_heading = self.current_heading + AVOID_ANGLE
+                else:
+                    self.avoid_side = 'RIGHT'
+                    self.avoid_heading = self.current_heading - AVOID_ANGLE
+                self.get_logger().info(
+                    f'Obstacle detected — avoiding to the {self.avoid_side}')
+            self.avoiding = True
+        elif self.avoiding:
+            gate_label = self.current_wp_idx + 1
+            self.get_logger().info(
+                f'Obstacle cleared — resuming navigation to gate {gate_label}')
+            self.avoiding = False
 
-        # Commandes :
-        #   angular.z proportionnel à sin(erreur) → correction douce du cap
-        #   linear.x  proportionnel à cos(erreur) → ralentir dans les virages
+        # --- Compute cmd_vel ---
         cmd = Twist()
-        cmd.angular.z = 2.0 * math.sin(angle_error)
-        cmd.linear.x = 0.5 * math.cos(angle_error)
+        if self.avoiding:
+            # Steer toward avoidance heading, slow speed
+            angle_error = normalize_angle(
+                self.avoid_heading - self.current_heading)
+            cmd.angular.z = 2.0 * math.sin(angle_error)
+            cmd.linear.x = 0.3 * math.cos(angle_error)
+        else:
+            # Normal pure pursuit toward current gate centre
+            angle_to_wp = math.atan2(dy, dx)
+            angle_error = normalize_angle(angle_to_wp - self.current_heading)
+            cmd.angular.z = 2.0 * math.sin(angle_error)
+            cmd.linear.x = 0.5 * math.cos(angle_error)
         self.pub_cmd_vel.publish(cmd)
 
     def _publish_waypoints_path(self, now):

@@ -185,9 +185,9 @@ class Sim2DNode(Node):
         acceleration = (v_port + v_starboard) / 2.0
 
         # Traînée visqueuse (résistance de l'eau).
-        # Coefficient 0.6 : vitesse plafonne à ~2.5 m/s pour linear.x=1.5
-        # → couvre ~45m entre portes en 15-20 secondes
-        drag = -0.6 * self.speed
+        # Coefficient 1.5 : vitesse plafonne à ~0.33 m/s pour linear.x=0.5
+        # → couvre ~45m entre portes en 30-40 secondes (visible en RViz2)
+        drag = -1.5 * self.speed
 
         # --- Intégration Euler ---
         self.speed += (acceleration + drag) * dt

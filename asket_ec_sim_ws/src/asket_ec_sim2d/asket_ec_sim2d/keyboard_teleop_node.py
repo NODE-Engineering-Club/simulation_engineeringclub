@@ -49,13 +49,13 @@ _ARROW_RIGHT = '\x1b[C'
 
 # (linear.x, angular.z) for each key
 KEY_COMMANDS = {
-    'z': (1.5, 0.0),
-    's': (-1.0, 0.0),
+    'z': (0.8, 0.0),
+    's': (-0.5, 0.0),
     'q': (0.3, 1.0),
     'd': (0.3, -1.0),
     ' ': (0.0, 0.0),
-    _ARROW_UP: (1.5, 0.0),
-    _ARROW_DOWN: (-1.0, 0.0),
+    _ARROW_UP: (0.8, 0.0),
+    _ARROW_DOWN: (-0.5, 0.0),
     _ARROW_LEFT: (0.3, 1.0),
     _ARROW_RIGHT: (0.3, -1.0),
 }

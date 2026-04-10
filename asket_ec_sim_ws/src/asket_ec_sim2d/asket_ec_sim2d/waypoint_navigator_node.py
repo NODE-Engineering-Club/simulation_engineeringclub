@@ -427,7 +427,7 @@ class WaypointNavigatorNode(Node):
         #   linear.x  proportionnel à cos(erreur) → ralentir dans les virages
         cmd = Twist()
         cmd.angular.z = 2.0 * math.sin(angle_error)
-        cmd.linear.x = 1.5 * math.cos(angle_error)
+        cmd.linear.x = 0.5 * math.cos(angle_error)
         self.pub_cmd_vel.publish(cmd)
 
     def _publish_waypoints_path(self, now):

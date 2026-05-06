@@ -33,6 +33,7 @@ def generate_launch_description():
     rviz_config = os.path.join(pkg_sim2d, 'config', 'sim2d.rviz')
     waypoints_file = os.path.join(pkg_sim2d, 'config', 'waypoints.yaml')
     buoys_file = os.path.join(pkg_sim2d, 'config', 'buoys.yaml')
+    obstacles_file = os.path.join(pkg_sim2d, 'config', 'obstacles.yaml')
 
     # use_sim_time=false : le simulateur Python utilise l'horloge système.
     # Pas de /clock publié → pas de "jump back in time" dans RViz2.
@@ -79,6 +80,19 @@ def generate_launch_description():
         }]
     )
 
+    # LIDAR simulator — reads obstacles.yaml, publishes /scan (LaserScan)
+    # and /obstacles/markers (MarkerArray) at 10 Hz
+    lidar_simulator_node = Node(
+        package='asket_ec_sim2d',
+        executable='lidar_simulator_node',
+        name='lidar_simulator',
+        output='screen',
+        parameters=[{
+            'use_sim_time': LaunchConfiguration('use_sim_time'),
+            'obstacles_file': obstacles_file,
+        }]
+    )
+
     # RViz2 avec la config dédiée sim2d
     rviz_node = Node(
         package='rviz2',
@@ -95,6 +109,7 @@ def generate_launch_description():
         use_sim_time_arg,
         simulator_node,
         buoy_simulator_node,
+        lidar_simulator_node,
         waypoint_navigator_node,
         rviz_node,
     ])

@@ -45,11 +45,14 @@ TOPICS
 Souscrit :
   /sim2d/pose        (geometry_msgs/PoseStamped) — position + cap courant
   /gates/centers     (nav_msgs/Path)              — centres de portes (priorité)
+  /manual_mode       (std_msgs/Bool)              — True=MANUAL, False=AUTO
+  /scan              (sensor_msgs/LaserScan)       — données LIDAR (VFH avoidance)
 
 Publie :
   /cmd_vel           (geometry_msgs/Twist)        — commandes de navigation
   /waypoints/path    (nav_msgs/Path)              — tous les waypoints (rouge RViz2)
   /waypoints/current (geometry_msgs/PointStamped) — waypoint cible actuel
+  /current_mode      (std_msgs/String)            — mode courant à 1 Hz
 
 =========================================================
 PRIORITÉ DE SOURCE DES WAYPOINTS
@@ -67,6 +70,8 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PointStamped, PoseStamped, Twist
 from nav_msgs.msg import Path
+from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Bool, String
 
 try:
     import yaml
@@ -80,6 +85,13 @@ EARTH_RADIUS = 6_371_000.0
 
 # Seuil d'arrivée à un waypoint (mètres)
 WAYPOINT_RADIUS = 2.0
+
+# =========================================================
+# VFH OBSTACLE AVOIDANCE PARAMETERS
+# =========================================================
+DANGER_DISTANCE = 2.5           # m  — obstacle closer than this triggers avoidance
+AVOID_ANGLE = math.radians(45)  # rad — heading deviation when avoiding
+FRONT_CONE_HALF = 30            # °  — half-width of the forward danger cone
 
 
 def gps_to_local(lat, lon):
@@ -106,6 +118,10 @@ class WaypointNavigatorNode(Node):
     Lit les waypoints depuis waypoints.yaml, les trie par distance
     croissante depuis l'origine, puis pilote le bateau via /cmd_vel
     en utilisant un pure pursuit simplifié.
+
+    Supporte le basculement MANUAL/AUTO via /manual_mode :
+      - MANUAL : stoppe le bateau et cède le contrôle
+      - AUTO   : reprend depuis la porte la plus proche
     """
 
     def __init__(self):
@@ -150,6 +166,20 @@ class WaypointNavigatorNode(Node):
         self.current_wp_idx = 0     # Index du waypoint cible courant
         self.mission_complete = False
         self.using_gates = False     # True when navigating gate centres
+        self.passed_gates = []       # Indices of gates already passed (never re-targeted)
+
+        # =========================================================
+        # MODE MANUEL / AUTOMATIQUE
+        # =========================================================
+        self.manual_mode = False    # False = AUTO, True = MANUAL
+
+        # =========================================================
+        # VFH OBSTACLE AVOIDANCE STATE
+        # =========================================================
+        self.scan_ranges = None     # Latest LIDAR scan (360 floats) or None
+        self.avoiding = False       # True when actively detouring an obstacle
+        self.avoid_heading = 0.0   # Target heading during avoidance (rad, world frame)
+        self.avoid_side = ''        # 'LEFT' or 'RIGHT'
 
         # =========================================================
         # SOUSCRIPTIONS
@@ -170,6 +200,22 @@ class WaypointNavigatorNode(Node):
             10
         )
 
+        # Manual mode toggle from keyboard_teleop or any other source
+        self.sub_manual_mode = self.create_subscription(
+            Bool,
+            '/manual_mode',
+            self.manual_mode_callback,
+            10
+        )
+
+        # LIDAR scan for VFH obstacle avoidance
+        self.sub_scan = self.create_subscription(
+            LaserScan,
+            '/scan',
+            self.scan_callback,
+            10,
+        )
+
         # =========================================================
         # PUBLICATIONS
         # =========================================================
@@ -178,11 +224,18 @@ class WaypointNavigatorNode(Node):
             Path, '/waypoints/path', 10)
         self.pub_wp_current = self.create_publisher(
             PointStamped, '/waypoints/current', 10)
+        self.pub_current_mode = self.create_publisher(
+            String, '/current_mode', 10)
 
         # =========================================================
         # TIMER 10 Hz — boucle de navigation
         # =========================================================
         self.timer = self.create_timer(0.1, self.navigation_step)
+
+        # =========================================================
+        # TIMER 1 Hz — publication du mode courant
+        # =========================================================
+        self.mode_timer = self.create_timer(1.0, self.publish_current_mode)
 
         self.get_logger().info(
             f'Navigateur waypoints démarré\n'
@@ -228,6 +281,72 @@ class WaypointNavigatorNode(Node):
         )
         return local_pts
 
+    def manual_mode_callback(self, msg):
+        """Handle MANUAL/AUTO mode switching from /manual_mode topic.
+
+        passed_gates is NEVER reset here — it persists across mode switches.
+        It is only cleared in gate_centers_callback on first gate reception.
+        """
+        new_manual = msg.data
+
+        if new_manual == self.manual_mode:
+            return  # No state change
+
+        if new_manual:
+            # Switching AUTO → MANUAL
+            self.manual_mode = True
+            # Immediately stop the boat
+            self.pub_cmd_vel.publish(Twist())
+            self.get_logger().info('Switching to MANUAL — navigator paused')
+        else:
+            # Switching MANUAL → AUTO
+            # passed_gates is intentionally kept — already-passed gates are
+            # never re-targeted even if the boat drifts back past them.
+            self.manual_mode = False
+            if self.waypoints and self.pose_received:
+                closest_idx = self._find_closest_gate()
+                if closest_idx is None:
+                    # All gates already passed — keep mission_complete = True
+                    self.get_logger().info(
+                        'Switching to AUTO — all gates already passed, mission complete')
+                else:
+                    self.current_wp_idx = closest_idx
+                    self.mission_complete = False
+                    gate_label = closest_idx + 1  # 1-based display
+                    self.get_logger().info(
+                        f'Switching to AUTO — resuming from gate {gate_label}')
+            else:
+                self.get_logger().info('Switching to AUTO — navigator resumed')
+
+    def _find_next_unpassed_gate(self):
+        """Return the lowest index not yet in passed_gates, or None if all passed."""
+        for i in range(len(self.waypoints)):
+            if i not in self.passed_gates:
+                return i
+        return None
+
+    def _find_closest_gate(self):
+        """Return the index of the closest waypoint that has NOT been passed yet.
+
+        Falls back to the current index if every gate has already been passed.
+        """
+        min_dist = float('inf')
+        closest_idx = None
+        for i, (wx, wy) in enumerate(self.waypoints):
+            if i in self.passed_gates:
+                continue
+            dist = math.hypot(wx - self.current_x, wy - self.current_y)
+            if dist < min_dist:
+                min_dist = dist
+                closest_idx = i
+        return closest_idx  # None when all gates are passed
+
+    def publish_current_mode(self):
+        """Publish the current navigation mode on /current_mode at 1 Hz."""
+        mode_msg = String()
+        mode_msg.data = 'MANUAL' if self.manual_mode else 'AUTO'
+        self.pub_current_mode.publish(mode_msg)
+
     def gate_centers_callback(self, msg):
         """
         Receive gate centres from buoy_simulator_node.
@@ -245,9 +364,13 @@ class WaypointNavigatorNode(Node):
         ]
 
         if not self.using_gates:
+            # First reception: full reset including passed_gates.
+            # This is the ONLY place passed_gates is cleared — mode switches
+            # (MANUAL ↔ AUTO) never touch it.
             self.waypoints = gate_centers
             self.current_wp_idx = 0
             self.mission_complete = False
+            self.passed_gates = []
             self.using_gates = True
             self.get_logger().info(
                 f'Gate navigation activated — '
@@ -260,6 +383,10 @@ class WaypointNavigatorNode(Node):
         else:
             # Update positions in case buoy_simulator published an update
             self.waypoints = gate_centers
+
+    def scan_callback(self, msg):
+        """Store the latest LIDAR scan for VFH obstacle avoidance."""
+        self.scan_ranges = list(msg.ranges)
 
     def pose_callback(self, msg):
         """Met à jour la position et le cap du bateau."""
@@ -278,13 +405,17 @@ class WaypointNavigatorNode(Node):
         Boucle de navigation à 10 Hz.
 
         Publie /waypoints/path et /waypoints/current à chaque tick.
-        Publie /cmd_vel uniquement si une pose a été reçue et que
-        la mission n'est pas terminée.
+        Publie /cmd_vel uniquement si une pose a été reçue, que la mission
+        n'est pas terminée, et que le mode est AUTO.
         """
         now = self.get_clock().now().to_msg()
 
         # --- Publier le chemin de tous les waypoints ---
         self._publish_waypoints_path(now)
+
+        # En mode MANUAL, le navigateur ne publie pas de commandes
+        if self.manual_mode:
+            return
 
         if not self.pose_received or self.mission_complete:
             return
@@ -316,9 +447,11 @@ class WaypointNavigatorNode(Node):
                     f'Waypoint [{self.current_wp_idx}] atteint '
                     f'(distance={distance:.2f}m)')
 
-            self.current_wp_idx += 1
+            # Mark this gate as passed — it will never be re-targeted
+            self.passed_gates.append(self.current_wp_idx)
 
-            if self.current_wp_idx >= len(self.waypoints):
+            next_idx = self._find_next_unpassed_gate()
+            if next_idx is None:
                 if self.using_gates:
                     self.get_logger().info(
                         'All gates passed ✓  Mission complete!')
@@ -329,6 +462,7 @@ class WaypointNavigatorNode(Node):
                 self.pub_cmd_vel.publish(Twist())
                 return
 
+            self.current_wp_idx = next_idx
             if self.using_gates:
                 next_x, next_y = self.waypoints[self.current_wp_idx]
                 self.get_logger().info(
@@ -341,19 +475,54 @@ class WaypointNavigatorNode(Node):
                     f'y={self.waypoints[self.current_wp_idx][1]:.1f}m')
             return
 
-        # --- Pure pursuit simplifié ---
-        # Angle vers le waypoint dans le référentiel monde
-        angle_to_wp = math.atan2(dy, dx)
+        # --- VFH obstacle avoidance ---
+        # Check scan rays within the forward danger cone (±FRONT_CONE_HALF°)
+        obstacle_in_front = False
+        if self.scan_ranges is not None and len(self.scan_ranges) == 360:
+            n = len(self.scan_ranges)
+            front_indices = (
+                list(range(0, FRONT_CONE_HALF + 1)) +
+                list(range(n - FRONT_CONE_HALF, n))
+            )
+            for i in front_indices:
+                if self.scan_ranges[i] < DANGER_DISTANCE:
+                    obstacle_in_front = True
+                    break
 
-        # Erreur angulaire = différence entre cap voulu et cap actuel
-        angle_error = normalize_angle(angle_to_wp - self.current_heading)
+        if obstacle_in_front:
+            if not self.avoiding:
+                # First detection — choose the side with more free space
+                left_avg = sum(self.scan_ranges[i] for i in range(0, 91)) / 91
+                right_avg = sum(self.scan_ranges[i] for i in range(270, 360)) / 90
+                if left_avg >= right_avg:
+                    self.avoid_side = 'LEFT'
+                    self.avoid_heading = self.current_heading + AVOID_ANGLE
+                else:
+                    self.avoid_side = 'RIGHT'
+                    self.avoid_heading = self.current_heading - AVOID_ANGLE
+                self.get_logger().info(
+                    f'Obstacle detected — avoiding to the {self.avoid_side}')
+            self.avoiding = True
+        elif self.avoiding:
+            gate_label = self.current_wp_idx + 1
+            self.get_logger().info(
+                f'Obstacle cleared — resuming navigation to gate {gate_label}')
+            self.avoiding = False
 
-        # Commandes :
-        #   angular.z proportionnel à sin(erreur) → correction douce du cap
-        #   linear.x  proportionnel à cos(erreur) → ralentir dans les virages
+        # --- Compute cmd_vel ---
         cmd = Twist()
-        cmd.angular.z = 2.0 * math.sin(angle_error)
-        cmd.linear.x = 1.5 * math.cos(angle_error)
+        if self.avoiding:
+            # Steer toward avoidance heading, slow speed
+            angle_error = normalize_angle(
+                self.avoid_heading - self.current_heading)
+            cmd.angular.z = 2.0 * math.sin(angle_error)
+            cmd.linear.x = 0.3 * math.cos(angle_error)
+        else:
+            # Normal pure pursuit toward current gate centre
+            angle_to_wp = math.atan2(dy, dx)
+            angle_error = normalize_angle(angle_to_wp - self.current_heading)
+            cmd.angular.z = 2.0 * math.sin(angle_error)
+            cmd.linear.x = 0.5 * math.cos(angle_error)
         self.pub_cmd_vel.publish(cmd)
 
     def _publish_waypoints_path(self, now):

@@ -13,21 +13,23 @@
 #
 # Gate layout (top-down view, north up):
 #
-#   Gate 3:  R ----center---- G   (~110m north)
-#   Gate 2:  R ----center---- G   (~67m  north)
-#   Gate 1:  R ----center---- G   (~22m  north)
-#            ^                ^
-#         ~8m west        ~25m east
+#   Gate 3:  R --center-- G   (~18m north, ~15m wide)
+#   Gate 2:  R --center-- G   (~10m north, ~15m wide)
+#   Gate 1:  R --center-- G   (~ 2m north, ~15m wide)
+#            ^             ^
+#          ~8m west    ~7m east
+#
+# Entire course: ~25m x 15m — fits easily in RViz2 view.
 
 gates:
   - id: 1
-    red:   {lat: 41.3853, lon: 2.1733}   # starboard (right) buoy
-    green: {lat: 41.3853, lon: 2.1737}   # port      (left)  buoy
+    red:   {lat: 41.38513, lon: 2.17330}   # starboard (right) buoy
+    green: {lat: 41.38513, lon: 2.17350}   # port      (left)  buoy
 
   - id: 2
-    red:   {lat: 41.3857, lon: 2.1733}
-    green: {lat: 41.3857, lon: 2.1737}
+    red:   {lat: 41.38520, lon: 2.17330}
+    green: {lat: 41.38520, lon: 2.17350}
 
   - id: 3
-    red:   {lat: 41.3861, lon: 2.1733}
-    green: {lat: 41.3861, lon: 2.1737}
+    red:   {lat: 41.38527, lon: 2.17330}
+    green: {lat: 41.38527, lon: 2.17350}

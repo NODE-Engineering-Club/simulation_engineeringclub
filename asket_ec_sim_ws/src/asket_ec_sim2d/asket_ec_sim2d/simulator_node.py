@@ -51,8 +51,9 @@ TOPICS PUBLIÉS
   /sim2d/odom   (nav_msgs/Odometry)          — odométrie standard ROS2
   /sim2d/navsat (sensor_msgs/NavSatFix)      — position GPS simulée
 
-TOPIC SOUSCRIT
-  /cmd_vel (geometry_msgs/Twist)             — commandes de vitesse
+TOPICS SOUSCRITS
+  /cmd_vel     (geometry_msgs/Twist) — commandes de vitesse
+  /manual_mode (std_msgs/Bool)       — True=MANUAL, False=AUTO (log only)
 """
 
 import math
@@ -63,6 +64,7 @@ from geometry_msgs.msg import PoseStamped, TransformStamped
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import NavSatFix, NavSatStatus
 from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 from tf2_ros import TransformBroadcaster
 
 # Origine GPS : port de Barcelone
@@ -94,17 +96,27 @@ class Sim2DNode(Node):
         self.linear_x = 0.0   # m/s : avance / recul
         self.angular_z = 0.0  # rad/s : rotation
 
+        # Mode courant (pour log uniquement — le pass-through /cmd_vel est inchangé)
+        self.manual_mode = False
+
         # Historique de la trajectoire pour /sim2d/path
         self.path_msg = Path()
         self.path_msg.header.frame_id = 'odom'
 
         # =========================================================
-        # SOUSCRIPTION
+        # SOUSCRIPTIONS
         # =========================================================
         self.sub_cmd_vel = self.create_subscription(
             Twist,
             '/cmd_vel',
             self.cmd_vel_callback,
+            10
+        )
+
+        self.sub_manual_mode = self.create_subscription(
+            Bool,
+            '/manual_mode',
+            self.manual_mode_callback,
             10
         )
 
@@ -145,6 +157,14 @@ class Sim2DNode(Node):
         self.linear_x = msg.linear.x
         self.angular_z = msg.angular.z
 
+    def manual_mode_callback(self, msg):
+        """Log mode changes from /manual_mode. cmd_vel pass-through is unchanged."""
+        new_manual = msg.data
+        if new_manual != self.manual_mode:
+            self.manual_mode = new_manual
+            mode_str = 'MANUAL' if new_manual else 'AUTO'
+            self.get_logger().info(f'Mode changed to {mode_str}')
+
     def physics_step(self):
         """
         Calcule un pas de physique à 50 Hz et publie l'état du bateau.
@@ -165,9 +185,9 @@ class Sim2DNode(Node):
         acceleration = (v_port + v_starboard) / 2.0
 
         # Traînée visqueuse (résistance de l'eau).
-        # Coefficient 0.6 : vitesse plafonne à ~2.5 m/s pour linear.x=1.5
-        # → couvre ~45m entre portes en 15-20 secondes
-        drag = -0.6 * self.speed
+        # Coefficient 1.5 : vitesse plafonne à ~0.33 m/s pour linear.x=0.5
+        # → couvre ~45m entre portes en 30-40 secondes (visible en RViz2)
+        drag = -1.5 * self.speed
 
         # --- Intégration Euler ---
         self.speed += (acceleration + drag) * dt

@@ -51,19 +51,22 @@ TOPICS PUBLIÉS
   /sim2d/odom   (nav_msgs/Odometry)          — odométrie standard ROS2
   /sim2d/navsat (sensor_msgs/NavSatFix)      — position GPS simulée
 
-TOPIC SOUSCRIT
-  /cmd_vel (geometry_msgs/Twist)             — commandes de vitesse
+TOPICS SOUSCRITS
+  /cmd_vel     (geometry_msgs/Twist) — commandes de vitesse
+  /manual_mode (std_msgs/Bool)       — True=MANUAL, False=AUTO (log only)
 """
 
 import math
 
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped, TransformStamped
+from geometry_msgs.msg import Point, PoseStamped, TransformStamped
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import NavSatFix, NavSatStatus
 from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 from tf2_ros import TransformBroadcaster
+from visualization_msgs.msg import Marker, MarkerArray
 
 # Origine GPS : port de Barcelone
 ORIGIN_LAT = 41.3851   # degrés Nord
@@ -94,17 +97,27 @@ class Sim2DNode(Node):
         self.linear_x = 0.0   # m/s : avance / recul
         self.angular_z = 0.0  # rad/s : rotation
 
+        # Mode courant (pour log uniquement — le pass-through /cmd_vel est inchangé)
+        self.manual_mode = False
+
         # Historique de la trajectoire pour /sim2d/path
         self.path_msg = Path()
         self.path_msg.header.frame_id = 'odom'
 
         # =========================================================
-        # SOUSCRIPTION
+        # SOUSCRIPTIONS
         # =========================================================
         self.sub_cmd_vel = self.create_subscription(
             Twist,
             '/cmd_vel',
             self.cmd_vel_callback,
+            10
+        )
+
+        self.sub_manual_mode = self.create_subscription(
+            Bool,
+            '/manual_mode',
+            self.manual_mode_callback,
             10
         )
 
@@ -119,6 +132,8 @@ class Sim2DNode(Node):
             Odometry, '/sim2d/odom', 10)
         self.pub_navsat = self.create_publisher(
             NavSatFix, '/sim2d/navsat', 10)
+        self.pub_boat_shape = self.create_publisher(
+            MarkerArray, '/sim2d/boat_shape', 10)
 
         # =========================================================
         # BROADCASTER TF2 — odom → base_link
@@ -144,6 +159,14 @@ class Sim2DNode(Node):
         """Reçoit les commandes de vitesse depuis /cmd_vel."""
         self.linear_x = msg.linear.x
         self.angular_z = msg.angular.z
+
+    def manual_mode_callback(self, msg):
+        """Log mode changes from /manual_mode. cmd_vel pass-through is unchanged."""
+        new_manual = msg.data
+        if new_manual != self.manual_mode:
+            self.manual_mode = new_manual
+            mode_str = 'MANUAL' if new_manual else 'AUTO'
+            self.get_logger().info(f'Mode changed to {mode_str}')
 
     def physics_step(self):
         """
@@ -229,6 +252,9 @@ class Sim2DNode(Node):
         odom.twist.twist.angular.z = self.angular_z
         self.pub_odom.publish(odom)
 
+        # --- Publier /sim2d/boat_shape ---
+        self.pub_boat_shape.publish(self._make_boat_markers(now, qz, qw))
+
         # --- Publier /sim2d/navsat (GPS simulé) ---
         # Conversion position locale (m) → lat/lon depuis l'origine Barcelone
         lat = ORIGIN_LAT + (self.y / EARTH_RADIUS) * (180.0 / math.pi)
@@ -245,6 +271,86 @@ class Sim2DNode(Node):
         navsat.status.status = NavSatStatus.STATUS_FIX
         navsat.status.service = NavSatStatus.SERVICE_GPS
         self.pub_navsat.publish(navsat)
+
+
+    def _make_boat_markers(self, stamp, qz, qw):
+        """
+        Build a MarkerArray representing the boat as a top-down silhouette.
+
+        Two TRIANGLE_LIST markers share the boat's pose so vertices are
+        defined in local frame (x = forward, y = left):
+          - hull: white/cream filled polygon
+          - bow accent: small orange triangle so heading is obvious
+        """
+        array = MarkerArray()
+
+        base_pose_args = dict(
+            frame_id='odom',
+            px=self.x, py=self.y,
+            qz=qz, qw=qw,
+            stamp=stamp,
+        )
+
+        # --- Hull polygon (fan-triangulated around local origin) ---
+        hull_pts = [
+            (2.5,  0.00),
+            (1.5,  0.70),
+            (0.0,  0.90),
+            (-1.5, 0.80),
+            (-2.0, 0.25),
+            (-2.0, -0.25),
+            (-1.5, -0.80),
+            (0.0,  -0.90),
+            (1.5,  -0.70),
+        ]
+        hull = Marker()
+        hull.header.frame_id = 'odom'
+        hull.header.stamp = stamp
+        hull.ns = 'boat'
+        hull.id = 0
+        hull.type = Marker.TRIANGLE_LIST
+        hull.action = Marker.ADD
+        hull.pose.position.x = self.x
+        hull.pose.position.y = self.y
+        hull.pose.position.z = 0.0
+        hull.pose.orientation.z = qz
+        hull.pose.orientation.w = qw
+        hull.scale.x = hull.scale.y = hull.scale.z = 1.0
+        hull.color.r = 0.95
+        hull.color.g = 0.95
+        hull.color.b = 0.85
+        hull.color.a = 1.0
+        center = Point(x=0.0, y=0.0, z=0.0)
+        n = len(hull_pts)
+        for i in range(n):
+            p1 = Point(x=hull_pts[i][0],           y=hull_pts[i][1],           z=0.0)
+            p2 = Point(x=hull_pts[(i + 1) % n][0], y=hull_pts[(i + 1) % n][1], z=0.0)
+            hull.points += [center, p1, p2]
+        array.markers.append(hull)
+
+        # --- Bow accent: small orange triangle so direction is obvious ---
+        bow = Marker()
+        bow.header.frame_id = 'odom'
+        bow.header.stamp = stamp
+        bow.ns = 'boat'
+        bow.id = 1
+        bow.type = Marker.TRIANGLE_LIST
+        bow.action = Marker.ADD
+        bow.pose.position.x = self.x
+        bow.pose.position.y = self.y
+        bow.pose.position.z = 0.05
+        bow.pose.orientation.z = qz
+        bow.pose.orientation.w = qw
+        bow.scale.x = bow.scale.y = bow.scale.z = 1.0
+        bow.color.r = 1.0
+        bow.color.g = 0.45
+        bow.color.b = 0.0
+        bow.color.a = 1.0
+        for vx, vy in [(2.5, 0.0), (1.5, 0.55), (1.5, -0.55)]:
+            bow.points.append(Point(x=vx, y=vy, z=0.0))
+        array.markers.append(bow)
+
+        return array
 
 
 def main(args=None):
